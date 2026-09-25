@@ -4,17 +4,36 @@ export const runtime = 'nodejs';
 
 const DEFAULT_ENDPOINT = 'https://opencode.ai/zen/go/v1/chat/completions';
 const DEFAULT_MODEL = 'deepseek-v4-flash-vision-exp';
+const UPSTREAM_TIMEOUT_MS = 30_000;
+
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 10;
+
+const rateCounts = new Map<string, { count: number; resetAt: number }>();
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateCounts.get(ip);
+
+  if (!entry || now >= entry.resetAt) {
+    rateCounts.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    if (rateCounts.size > 10_000) {
+      for (const [key, value] of rateCounts) {
+        if (now >= value.resetAt) rateCounts.delete(key);
+      }
+    }
+    return false;
+  }
+
+  entry.count += 1;
+  return entry.count > RATE_LIMIT_MAX_REQUESTS;
+}
 
 type ScanPayload = {
   items: { name: string; price: number }[];
   serviceChargePercent: number;
   taxPercent: number;
 };
-
-function maskKey(key: string): string {
-  if (!key) return '(empty)';
-  return `${key.slice(0, 4)}${'*'.repeat(Math.max(0, key.length - 4))}`;
-}
 
 function extractJsonText(text: unknown): string | null {
   if (typeof text !== 'string' || !text.trim()) return null;
@@ -110,15 +129,26 @@ function buildRequestBody(model: string, imageDataUrl: string) {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+      req.headers.get('x-real-ip') ??
+      'unknown';
+
+    if (isRateLimited(ip)) {
+      return NextResponse.json(
+        { error: 'Too many scans. Please wait a minute and try again.' },
+        { status: 429 },
+      );
+    }
+
     const apiKey = process.env.OPENCODE_API_KEY;
     if (!apiKey) {
-      console.error('[scan] OPENCODE_API_KEY is MISSING from the environment.');
+      console.error('[scan] server misconfigured: OPENCODE_API_KEY is not set.');
       return NextResponse.json(
         { error: 'Server configuration error: OPENCODE_API_KEY is not set.' },
         { status: 500 },
       );
     }
-    console.log(`[scan] OPENCODE_API_KEY is defined: ${maskKey(apiKey)}`);
 
     const body = await req.json().catch(() => null);
     const imageBase64 =
@@ -140,26 +170,24 @@ export async function POST(req: NextRequest) {
 
     const normalized = normalizeImageDataUrl(imageBase64);
     if ('error' in normalized) {
-      console.error(`[scan] image payload rejected: ${normalized.error}`);
       return NextResponse.json(
         { error: 'The receipt image data is malformed. Please re-upload the photo.' },
         { status: 400 },
       );
     }
     const imageDataUrl = normalized.dataUrl;
-    console.log(
-      `[scan] image payload accepted (length: ${imageBase64.length}, ` +
-        `normalized preview: ${imageDataUrl.slice(0, 40)}...).`,
-    );
 
     const endpoint = process.env.OPENCODE_ENDPOINT ?? DEFAULT_ENDPOINT;
     const model = process.env.OPENCODE_MODEL || DEFAULT_MODEL;
 
-    console.log(`[scan] calling upstream ${endpoint} (model: ${model}).`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+
     let response: Response;
     try {
       response = await fetch(endpoint, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
@@ -169,19 +197,21 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify(buildRequestBody(model, imageDataUrl)),
       });
     } catch (fetchError) {
-      console.error(`[scan] upstream fetch to ${endpoint} threw an error:`, fetchError);
+      const timedOut = fetchError instanceof Error && fetchError.name === 'AbortError';
       return NextResponse.json(
-        { error: 'Could not reach the AI service. Please try again.' },
+        {
+          error: timedOut
+            ? 'The AI service took too long to respond. Please try again.'
+            : 'Could not reach the AI service. Please try again.',
+        },
         { status: 502 },
       );
+    } finally {
+      clearTimeout(timeout);
     }
-    console.log(`[scan] upstream responded with HTTP ${response.status}.`);
 
     if (!response.ok) {
-      const bodyText = await response.text().catch(() => '(response body was not readable)');
-      console.error(
-        `[scan] upstream error HTTP ${response.status} — response body:\n${bodyText.slice(0, 2000)}`,
-      );
+      console.error(`[scan] upstream error: HTTP ${response.status}.`);
       return NextResponse.json(
         { error: 'The AI service failed to process the receipt. Please try again.' },
         { status: 502 },
@@ -190,9 +220,7 @@ export async function POST(req: NextRequest) {
 
     const completion = await response.json().catch(() => null);
     if (!completion) {
-      console.error(
-        `[scan] upstream returned HTTP ${response.status} but the response was not valid JSON.`,
-      );
+      console.error('[scan] upstream response was not valid JSON.');
       return NextResponse.json(
         { error: 'The AI service returned an unreadable response.' },
         { status: 502 },
@@ -205,17 +233,12 @@ export async function POST(req: NextRequest) {
 
     const rawText = extractJsonText(content);
     if (!rawText) {
-      console.error(
-        '[scan] no text content found in completion. Raw completion:',
-        JSON.stringify(completion).slice(0, 2000),
-      );
+      console.error('[scan] no text content found in model completion.');
     }
 
     const parsed = rawText ? parseJsonLoose(rawText) : null;
     if (rawText && parsed === null) {
-      console.error(
-        `[scan] failed to parse JSON from model response. Raw text received:\n${rawText.slice(0, 2000)}`,
-      );
+      console.error('[scan] failed to parse JSON from model response.');
     }
 
     const result = coerceScanResult(parsed);
@@ -237,10 +260,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`[scan] success — parsed ${result.items.length} item(s).`);
     return NextResponse.json(result);
   } catch (error) {
-    console.error('[scan] unexpected error:', error);
+    console.error('[scan] unexpected error:', error instanceof Error ? error.message : error);
     return NextResponse.json(
       { error: 'Unexpected server error while scanning the receipt.' },
       { status: 500 },
