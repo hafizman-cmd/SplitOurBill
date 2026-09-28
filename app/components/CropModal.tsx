@@ -181,31 +181,31 @@ export default function CropModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-4 backdrop-blur-sm sm:items-center"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Crop receipt"
     >
       <div
-        className="flex max-h-[92vh] w-full max-w-md flex-col rounded-3xl bg-white p-6 shadow-2xl"
+        className="glass-card flex max-h-[92vh] w-full max-w-md flex-col p-6 dark:text-slate-100"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Crop size={18} className="text-indigo-600" />
-            <h3 className="text-base font-bold text-slate-800">Crop Receipt</h3>
+            <Crop size={18} className="text-blue-400" />
+            <h3 className="text-base font-bold text-white">Crop Receipt</h3>
           </div>
           <button
             onClick={onClose}
             aria-label="Close cropper"
-            className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-full p-2 text-slate-300 transition hover:bg-white/10 hover:text-white"
           >
             <X size={18} />
           </button>
         </div>
 
-        <p className="mb-3 text-xs text-slate-500">
+        <p className="mb-3 text-xs leading-relaxed text-slate-300">
           Drag the corners to trim the photo down to the receipt text, or drag on
           the image to select a new area.
         </p>
@@ -236,19 +236,19 @@ export default function CropModal({
                 onPointerDown={(e) => beginDrag('move', e)}
               >
                 <span
-                  className="absolute -left-2 -top-2 h-4 w-4 cursor-nwse-resize rounded-sm border-2 border-white bg-indigo-600"
+                  className="absolute -left-2 -top-2 h-4 w-4 cursor-nwse-resize rounded-sm border-2 border-white bg-blue-600"
                   onPointerDown={(e) => beginDrag('nw', e)}
                 />
                 <span
-                  className="absolute -right-2 -top-2 h-4 w-4 cursor-nesw-resize rounded-sm border-2 border-white bg-indigo-600"
+                  className="absolute -right-2 -top-2 h-4 w-4 cursor-nesw-resize rounded-sm border-2 border-white bg-blue-600"
                   onPointerDown={(e) => beginDrag('ne', e)}
                 />
                 <span
-                  className="absolute -bottom-2 -left-2 h-4 w-4 cursor-nesw-resize rounded-sm border-2 border-white bg-indigo-600"
+                  className="absolute -bottom-2 -left-2 h-4 w-4 cursor-nesw-resize rounded-sm border-2 border-white bg-blue-600"
                   onPointerDown={(e) => beginDrag('sw', e)}
                 />
                 <span
-                  className="absolute -bottom-2 -right-2 h-4 w-4 cursor-nwse-resize rounded-sm border-2 border-white bg-indigo-600"
+                  className="absolute -bottom-2 -right-2 h-4 w-4 cursor-nwse-resize rounded-sm border-2 border-white bg-blue-600"
                   onPointerDown={(e) => beginDrag('se', e)}
                 />
               </div>
@@ -261,7 +261,7 @@ export default function CropModal({
             type="button"
             onClick={onSkip}
             disabled={processing}
-            className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 py-2.5 text-sm font-semibold text-slate-100 transition hover:bg-white/15 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Check size={16} />
             Skip Cropping
@@ -270,7 +270,7 @@ export default function CropModal({
             type="button"
             onClick={handleCrop}
             disabled={processing}
-            className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {processing ? (
               <Loader2 size={16} className="animate-spin" />

@@ -40,8 +40,9 @@ app/
   globals.css          Tailwind directives only
   types.ts             Shared types: Item, ScanResponse, PersonBreakdown, SplitResult
   lib/
-    utils.ts           formatRM, round2, uid, compressImage (client-side canvas JPEG), storage keys
-    split.ts           PURE bill math: computeSplit(), buildShareText() — no React, no DOM
+    utils.ts           formatRM, round2, uid, compressImage (client-side canvas JPEG), readQrPayload (jsQR EMVCo decode), storage keys
+    split.ts           PURE bill math: computeSplit(), buildShareText(), findAccountNumber() — no React, no DOM
+    urlState.ts        encodeBillToUrl/decodeBillFromUrl (lz-string) + coercion of untrusted URL payloads
   components/          Presentational components; each modal owns its draft state + Escape handling
     Header.tsx
     ReceiptScanner.tsx   File input → onSelect(file); clears input itself
@@ -49,9 +50,12 @@ app/
     ItemList.tsx         Includes manual add form (local state)
     ChargesSection.tsx   Service charge % / tax % inputs (string values, parent parses)
     SummarySection.tsx   Totals + per-person cards + QR button
-    SettingsModal.tsx    Bank details + QR image upload; onSave(trimmedBank, qrDataUrl)
+    SettingsModal.tsx    Bank details + QR image upload (jsQR-decoded qrPayload); onSave(trimmedBank, qrDataUrl, qrPayload)
+    ShareModal.tsx       Interactive link display + copy, WhatsApp, native share
     PaymentQrModal.tsx   Full-screen QR display + download
+    Footer.tsx           Legal disclaimer (bill calculator, no payment processing)
     Toast.tsx
+  view/page.tsx        'use client' read-only guest view (?b= compressed payload): person lookup, breakdown, DuitNow QR + settlement card
   api/scan/route.ts   POST { imageBase64 } → AI vision proxy → { items, serviceChargePercent, taxPercent }
 ```
 

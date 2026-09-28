@@ -55,22 +55,22 @@ export default function HistoryModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-4 backdrop-blur-sm sm:items-center"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Receipt history"
     >
       <div
-        className="flex max-h-[80vh] w-full max-w-md flex-col rounded-3xl bg-white p-6 shadow-2xl"
+        className="glass-card flex max-h-[80vh] w-full max-w-md flex-col p-6 dark:text-slate-100"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-800">Receipt History</h3>
+          <h3 className="text-base font-bold text-white">Receipt History</h3>
           <button
             onClick={onClose}
             aria-label="Close history"
-            className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-full p-2 text-slate-300 transition hover:bg-white/10 hover:text-white"
           >
             <X size={18} />
           </button>
@@ -86,14 +86,14 @@ export default function HistoryModal({
                   <button
                     type="button"
                     onClick={() => onSelectEntry(entry)}
-                    className="flex w-full items-center justify-between gap-3 rounded-2xl bg-slate-50 p-4 text-left ring-1 ring-slate-200/70 transition hover:bg-indigo-50 hover:ring-indigo-200 active:scale-[0.98]"
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-blue-500/30 hover:bg-blue-600/10 active:scale-[0.98]"
                   >
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-700">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600/20 text-blue-400">
                         <Receipt size={18} />
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-800">
+                        <p className="truncate text-sm font-semibold text-slate-100">
                           {entry.restaurantName}
                         </p>
                         <p className="text-[11px] text-slate-400">
@@ -102,7 +102,7 @@ export default function HistoryModal({
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-col items-end leading-tight">
-                      <p className="text-sm font-bold text-indigo-600">
+                      <p className="text-sm font-bold text-blue-400">
                         {formatMoney(entry.grandTotal, code)}
                       </p>
                       {formatMyrEquivalent(entry.grandTotal, code, rate) && (
@@ -117,7 +117,7 @@ export default function HistoryModal({
             })}
           </ul>
         ) : (
-          <p className="rounded-2xl bg-slate-50 p-4 text-xs text-slate-400">
+          <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-slate-300">
             No saved receipts yet. Successfully scanned receipts will appear here
             automatically.
           </p>
@@ -127,7 +127,7 @@ export default function HistoryModal({
           <button
             type="button"
             onClick={onClear}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 py-2.5 text-sm font-semibold text-rose-600 transition hover:bg-rose-100 active:scale-[0.98]"
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-300/25 bg-rose-400/10 py-2.5 text-sm font-semibold text-rose-200 transition hover:bg-rose-400/20 active:scale-[0.98]"
           >
             <Trash2 size={14} />
             Clear History

@@ -1,13 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, Plus, Receipt, Trash2 } from 'lucide-react';
+import { Check, ListChecks, Plus, Trash2, UserCircle } from 'lucide-react';
 import type { Item } from '../types';
-import {
-  formatMoney,
-  formatMyrEquivalent,
-  type CurrencyCode,
-} from '../lib/currency';
+import { formatMoney, formatMyrEquivalent, type CurrencyCode } from '../lib/currency';
 
 type Props = {
   items: Item[];
@@ -30,131 +26,89 @@ export default function ItemList({
 }: Props) {
   const [manualName, setManualName] = useState('');
   const [manualPrice, setManualPrice] = useState('');
+  const unassignedCount = items.filter((item) => item.assigned.length === 0).length;
 
   const addManualItem = () => {
     const name = manualName.trim();
     const price = Number(manualPrice);
-    if (!name) return;
-    if (!Number.isFinite(price) || price < 0) return;
+    if (!name || !Number.isFinite(price) || price < 0) return;
     onAddManualItem(name, price);
     setManualName('');
     setManualPrice('');
   };
 
-  const unassignedCount = items.filter((it) => it.assigned.length === 0).length;
-
   return (
-    <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200/60">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Receipt size={16} className="text-indigo-600" />
-          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">
-            Items
-          </h2>
-        </div>
+    <section className="glass-card overflow-hidden p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3 px-1">
+        <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+          <ListChecks className="h-4 w-4 text-blue-400" />
+          Items
+        </h2>
         {unassignedCount > 0 && (
-          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-600">
-            {unassignedCount} unassigned
+          <span className="shrink-0 rounded-full border border-blue-500/30 bg-blue-600/10 px-2.5 py-1 text-[10px] font-bold tracking-wide text-blue-300">
+            {unassignedCount} TO ASSIGN
           </span>
         )}
       </div>
 
       {items.length > 0 ? (
-        <ul className="space-y-3">
-          {items.map((it) => (
-            <li
-              key={it.id}
-              className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200/70"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <p className="min-w-0 flex-1 break-words text-sm font-semibold text-slate-800">
-                  {it.name}
-                </p>
-                <div className="flex shrink-0 items-start gap-2">
-                  <span className="flex flex-col items-end leading-tight">
-                    <span className="text-sm font-bold text-slate-700">
-                      {formatMoney(it.price, currency)}
-                    </span>
-                    {formatMyrEquivalent(it.price, currency, myrRate) && (
-                      <span className="text-[10px] font-medium text-slate-400">
-                        {formatMyrEquivalent(it.price, currency, myrRate)}
-                      </span>
+        <ul className="space-y-5">
+          {items.map((item) => {
+            const splitCount = item.assigned.length;
+            const each = splitCount > 0 ? formatMoney(item.price / splitCount, currency) : null;
+            return (
+              <li key={item.id} className="rounded-2xl border-x border-white/10 border-t border-white/20 border-b border-white/5 bg-slate-950/30 px-4 py-5 shadow-xl shadow-black/20 sm:px-5">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4">
+                  <div className="min-w-0">
+                    <p className="break-words text-lg font-bold leading-snug tracking-tight text-white sm:text-xl">{item.name}</p>
+                    {each ? (
+                      <p className="mt-2 text-sm font-semibold text-slate-300">
+                        {each} each <span className="font-medium text-slate-300">· shared by {splitCount}</span>
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-sm font-medium text-slate-300">Choose diners to split this item</p>
                     )}
-                  </span>
-                  <button
-                    onClick={() => onRemoveItem(it.id)}
-                    aria-label={`Remove ${it.name}`}
-                    className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  </div>
+                  <div className="flex items-start gap-1">
+                    <div className="text-right">
+                      <p className="text-lg font-bold leading-tight tracking-tight text-white sm:text-xl">{formatMoney(item.price, currency)}</p>
+                      {formatMyrEquivalent(item.price, currency, myrRate) && (
+                        <p className="mt-1 text-[11px] font-semibold text-blue-300/80">{formatMyrEquivalent(item.price, currency, myrRate)}</p>
+                      )}
+                    </div>
+                    <button onClick={() => onRemoveItem(item.id)} aria-label={`Remove ${item.name}`} className="-mt-1 ml-1 rounded-lg p-1.5 text-slate-500 transition hover:bg-rose-400/10 hover:text-rose-200 active:scale-95">
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {people.length > 0 ? (
-                  people.map((p) => {
-                    const assigned = it.assigned.includes(p);
+
+                <div className="mt-6 flex flex-wrap gap-x-3 gap-y-3">
+                  {people.length > 0 ? people.map((person) => {
+                    const assigned = item.assigned.includes(person);
                     return (
                       <button
-                        key={p}
-                        onClick={() => onToggleAssignment(it.id, p)}
-                        className={`flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition active:scale-95 ${
-                          assigned
-                            ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm shadow-indigo-200'
-                            : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-600'
-                        }`}
+                        key={person}
+                        onClick={() => onToggleAssignment(item.id, person)}
+                        className={`flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold transition active:scale-95 ${assigned ? 'border-blue-500/40 bg-blue-600/20 text-blue-400 shadow-md shadow-blue-950/30' : 'border-white/10 bg-white/5 text-slate-400 hover:border-blue-500/30 hover:bg-white/10 hover:text-white'}`}
                       >
-                        {assigned && <Check size={12} />}
-                        {p}
+                        {assigned ? <Check size={14} strokeWidth={2.6} /> : <UserCircle size={14} className="text-slate-400" />}
+                        {person}
                       </button>
                     );
-                  })
-                ) : (
-                  <p className="text-xs text-slate-400">
-                    Add people above, then tap names to split this item.
-                  </p>
-                )}
-              </div>
-              {it.assigned.length > 0 && (
-                <p className="mt-2.5 text-[11px] font-medium text-indigo-600">
-                  {formatMoney(it.price / it.assigned.length, currency)} each -
-                  shared by {it.assigned.length}
-                  {it.assigned.length > 1 ? ' people' : ' person'}
-                </p>
-              )}
-            </li>
-          ))}
+                  }) : <p className="text-xs text-slate-300">Add people above, then select who shared each item.</p>}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       ) : (
-        <p className="rounded-2xl bg-slate-50 p-4 text-xs text-slate-400">
-          No items yet. Scan a receipt or add items manually below.
-        </p>
+        <div className="rounded-xl border border-dashed border-white/20 bg-white/[0.03] p-6 text-center text-sm font-medium text-slate-300">No items yet. Scan a receipt or add an item below.</div>
       )}
 
-      <div className="mt-4 flex gap-2">
-        <input
-          value={manualName}
-          onChange={(e) => setManualName(e.target.value)}
-          placeholder="Item name"
-          className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100"
-        />
-        <input
-          value={manualPrice}
-          onChange={(e) => setManualPrice(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') addManualItem();
-          }}
-          inputMode="decimal"
-          placeholder="0.00"
-          className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100"
-        />
-        <button
-          onClick={addManualItem}
-          aria-label="Add item"
-          className="flex items-center justify-center rounded-xl bg-indigo-600 px-4 text-white shadow-sm transition active:scale-95 hover:bg-indigo-700"
-        >
-          <Plus size={18} />
-        </button>
+      <div className="mt-6 grid grid-cols-[minmax(0,1fr)_5.75rem_auto] gap-2 border-t border-white/10 pt-4">
+        <input value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="Item name" className="glass-input min-w-0 text-sm" />
+        <input value={manualPrice} onChange={(event) => setManualPrice(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') addManualItem(); }} inputMode="decimal" placeholder="0.00" className="glass-input w-full text-sm" />
+        <button onClick={addManualItem} aria-label="Add item" className="flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-3 text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-95"><Plus size={18} /></button>
       </div>
     </section>
   );

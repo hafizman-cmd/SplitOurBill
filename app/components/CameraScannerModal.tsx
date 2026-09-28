@@ -357,7 +357,7 @@ export default function CameraScannerModal({
     >
       <div className="flex items-center justify-between px-4 pb-2 pt-4">
         <div className="flex items-center gap-2">
-          <Camera size={18} className="text-indigo-300" />
+          <Camera size={18} className="text-blue-400" />
           <h3 className="text-base font-bold text-white">Scan Receipt</h3>
         </div>
         <button
@@ -371,7 +371,7 @@ export default function CameraScannerModal({
 
       <div className="relative flex flex-1 items-center justify-center overflow-hidden px-4">
         {cameraError ? (
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+          <div className="glass-card w-full max-w-sm p-6 text-center dark:text-slate-100">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 text-rose-600">
               <Camera size={22} />
             </div>
@@ -382,7 +382,7 @@ export default function CameraScannerModal({
               <button
                 type="button"
                 onClick={() => setAttempt((a) => a + 1)}
-                className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-[0.98]"
+                className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-[0.98]"
               >
                 <RefreshCw size={16} />
                 Try Again
@@ -449,7 +449,7 @@ export default function CameraScannerModal({
           onClick={handleShutter}
           disabled={capturing}
           aria-label="Capture receipt"
-          className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-950/50 ring-4 ring-white/80 transition hover:bg-indigo-500 active:scale-95 disabled:opacity-40"
+          className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-950/50 ring-4 ring-white/80 transition hover:bg-blue-500 active:scale-95 disabled:opacity-40"
         >
           {capturing ? (
             <Loader2 size={26} className="animate-spin" />

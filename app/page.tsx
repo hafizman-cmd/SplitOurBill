@@ -5,13 +5,16 @@ import { Share2 } from 'lucide-react';
 import type { HistoryEntry, Item, ScanResponse, SplitResult } from './types';
 import {
   HISTORY_STORAGE_KEY,
+  ACTIVE_BILL_STORAGE_KEY,
   QR_STORAGE_KEY,
+  QR_PAYLOAD_STORAGE_KEY,
   STORAGE_KEY,
   compressImage,
   loadHistoryFromStorage,
   uid,
 } from './lib/utils';
 import { buildShareText, computeSplit } from './lib/split';
+import { encodeBillToUrl, type SharedBill } from './lib/urlState';
 import { CURRENCIES, type CurrencyCode } from './lib/currency';
 import Header from './components/Header';
 import ReceiptScanner from './components/ReceiptScanner';
@@ -20,21 +23,29 @@ import ItemList from './components/ItemList';
 import ChargesSection from './components/ChargesSection';
 import SummarySection from './components/SummarySection';
 import SettingsModal from './components/SettingsModal';
+import ShareModal from './components/ShareModal';
 import PaymentQrModal from './components/PaymentQrModal';
 import HistoryModal from './components/HistoryModal';
 import CropModal from './components/CropModal';
 import CameraScannerModal from './components/CameraScannerModal';
+import Footer from './components/Footer';
 import Toast from './components/Toast';
 
 export default function Home() {
   const [bankDetails, setBankDetails] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [paymentQrCode, setPaymentQrCode] = useState('');
+  const [qrPayload, setQrPayload] = useState('');
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
 
   const [people, setPeople] = useState<string[]>([]);
+  const [paidStatus, setPaidStatus] = useState<Record<string, boolean>>({});
+  const [restaurantName, setRestaurantName] = useState('');
+  const [billDate, setBillDate] = useState('');
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [sharePayload, setSharePayload] = useState<{ url: string; text: string } | null>(null);
 
   const [items, setItems] = useState<Item[]>([]);
 
@@ -44,6 +55,7 @@ export default function Home() {
   const [currency, setCurrency] = useState<CurrencyCode>('MYR');
   const [rateInput, setRateInput] = useState('');
   const [fetchingRate, setFetchingRate] = useState(false);
+  const myrRate = currency === 'MYR' ? 1 : Math.max(0, Number(rateInput) || 0);
 
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -65,7 +77,10 @@ export default function Home() {
       if (saved) setBankDetails(saved);
       const savedQr = window.localStorage.getItem(QR_STORAGE_KEY);
       if (savedQr) setPaymentQrCode(savedQr);
+      const savedQrPayload = window.localStorage.getItem(QR_PAYLOAD_STORAGE_KEY);
+      if (savedQrPayload) setQrPayload(savedQrPayload);
       setHistory(loadHistoryFromStorage());
+      window.localStorage.removeItem(ACTIVE_BILL_STORAGE_KEY);
     } catch {
       /* localStorage unavailable */
     }
@@ -145,6 +160,8 @@ export default function Home() {
       if (typeof data.taxPercent === 'number') {
         setTaxInput(String(data.taxPercent));
       }
+      setRestaurantName(data.restaurantName?.trim() || '');
+      setBillDate(new Date().toISOString());
       saveHistory(
         data.restaurantName?.trim() || 'Receipt',
         [...items, ...newItems],
@@ -172,6 +189,7 @@ export default function Home() {
     const receiptData = {
       items: snapshotItems,
       people,
+      paidStatus,
       serviceCharge,
       tax,
       currency,
@@ -213,6 +231,11 @@ export default function Home() {
     const snap = entry.receiptData;
     setItems(snap.items);
     setPeople(snap.people);
+    setPaidStatus(
+      Object.fromEntries(snap.people.map((person) => [person, snap.paidStatus?.[person] ?? false])),
+    );
+    setRestaurantName(entry.restaurantName === 'Receipt' ? '' : entry.restaurantName);
+    setBillDate(entry.date);
     setServiceChargeInput(String(snap.serviceCharge));
     setTaxInput(String(snap.tax));
     setCurrency(snap.currency ?? 'MYR');
@@ -241,17 +264,64 @@ export default function Home() {
       return false;
     }
     setPeople((prev) => [...prev, name]);
+    setPaidStatus((prev) => ({ ...prev, [name]: false }));
     return true;
   };
 
   const removePerson = (name: string) => {
     setPeople((prev) => prev.filter((p) => p !== name));
+    setPaidStatus((prev) => {
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
     setItems((prev) =>
       prev.map((it) => ({
         ...it,
         assigned: it.assigned.filter((a) => a !== name),
       })),
     );
+  };
+
+  const togglePaidStatus = (person: string) => {
+    setPaidStatus((prev) => {
+      const nextStatus = { ...prev, [person]: !prev[person] };
+      setHistory((currentHistory) => {
+        if (currentHistory.length === 0) return currentHistory;
+        const [head, ...rest] = currentHistory;
+        const nextHead: HistoryEntry = {
+          ...head,
+          receiptData: { ...head.receiptData, paidStatus: nextStatus },
+        };
+        const nextHistory = [nextHead, ...rest];
+        try {
+          window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(nextHistory));
+        } catch {
+          /* localStorage unavailable */
+        }
+        return nextHistory;
+      });
+      return nextStatus;
+    });
+  };
+
+  const resetPaidStatus = () => {
+    const nextStatus = Object.fromEntries(people.map((person) => [person, false]));
+    setPaidStatus(nextStatus);
+    setHistory((currentHistory) => {
+      if (currentHistory.length === 0) return currentHistory;
+      const [head, ...rest] = currentHistory;
+      const nextHistory = [
+        { ...head, receiptData: { ...head.receiptData, paidStatus: nextStatus } },
+        ...rest,
+      ];
+      try {
+        window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(nextHistory));
+      } catch {
+        /* localStorage unavailable */
+      }
+      return nextHistory;
+    });
   };
 
   const addManualItem = (name: string, price: number) => {
@@ -284,8 +354,6 @@ export default function Home() {
       ),
     );
   };
-
-  const myrRate = currency === 'MYR' ? 1 : Math.max(0, Number(rateInput) || 0);
 
   const handleCurrencyChange = (code: CurrencyCode) => {
     setCurrency(code);
@@ -336,37 +404,61 @@ export default function Home() {
     [items, people, serviceChargeInput, taxInput],
   );
 
-  const handleShare = async () => {
+  const openShareModal = () => {
     if (items.length === 0 || people.length === 0) {
       showToast('Add items and people first.');
       return;
     }
-    const text = buildShareText(calc, people, bankDetails, currency, myrRate);
-    try {
-      if (typeof navigator !== 'undefined' && navigator.share) {
-        await navigator.share({ title: 'Kira-Kira Bill Split', text });
-        showToast('Share sheet opened');
-      } else {
-        await navigator.clipboard.writeText(text);
-        showToast('Summary copied to clipboard');
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      try {
-        await navigator.clipboard.writeText(text);
-        showToast('Summary copied to clipboard');
-      } catch {
-        showToast('Unable to share. Please try again.');
-      }
-    }
+    const sharedBill: SharedBill = {
+      restaurantName: restaurantName.trim() || 'Kira-Kira Bill',
+      date: billDate || new Date().toISOString(),
+      currency,
+      myrRate: currency === 'MYR' ? 1 : myrRate,
+      people,
+      perPerson: Object.fromEntries(
+        people.map((p) => {
+          const entry = calc.perPerson[p];
+          return [
+            p,
+            {
+              items: entry.items.map((it) => ({ name: it.name, share: it.share })),
+              raw: entry.raw,
+              final: entry.final,
+            },
+          ];
+        }),
+      ),
+      subtotal: calc.subtotal,
+      serviceCharge: calc.serviceCharge,
+      serviceAmt: calc.serviceAmt,
+      tax: calc.tax,
+      taxAmt: calc.taxAmt,
+      grandTotal: calc.grandTotal,
+      bankDetails: bankDetails.trim(),
+      qrPayload,
+    };
+    const origin =
+      typeof window !== 'undefined' && window.location.origin
+        ? window.location.origin
+        : 'https://splitourbill.vercel.app';
+    const url = `${origin}/view?b=${encodeURIComponent(encodeBillToUrl(sharedBill))}`;
+    const text = buildShareText(calc, people, bankDetails, currency, myrRate, url);
+    setSharePayload({ url, text });
+    setShareModalOpen(true);
   };
 
-  const saveSettings = (bankDetails: string, qrCode: string) => {
+  const saveSettings = (
+    bankDetails: string,
+    qrCode: string,
+    qrPayload: string,
+  ) => {
     setBankDetails(bankDetails);
     setPaymentQrCode(qrCode);
+    setQrPayload(qrPayload);
     try {
       window.localStorage.setItem(STORAGE_KEY, bankDetails);
       window.localStorage.setItem(QR_STORAGE_KEY, qrCode);
+      window.localStorage.setItem(QR_PAYLOAD_STORAGE_KEY, qrPayload);
     } catch {
       /* localStorage unavailable */
     }
@@ -375,14 +467,14 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800 antialiased">
-      <div className="mx-auto flex min-h-screen max-w-md flex-col bg-slate-100 shadow-xl sm:shadow-none">
+    <div className="min-h-screen bg-transparent text-slate-100 antialiased">
+      <div className="mx-auto flex min-h-screen max-w-md flex-col bg-transparent">
         <Header
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenHistory={() => setHistoryOpen(true)}
         />
 
-        <main className="space-y-4 px-4 pb-20 pt-3">
+        <main className="space-y-5 px-4 pb-6 pt-3">
           <ReceiptScanner
             scanning={scanning}
             scanError={scanError}
@@ -422,6 +514,9 @@ export default function Home() {
           <SummarySection
             people={people}
             calc={calc}
+            paidStatus={paidStatus}
+            onTogglePaid={togglePaidStatus}
+            onResetPaid={resetPaidStatus}
             paymentQrCode={paymentQrCode}
             onShowQr={() => setQrModalOpen(true)}
             currency={currency}
@@ -429,22 +524,23 @@ export default function Home() {
           />
         </main>
 
-        <div className="sticky bottom-4 z-40 mx-4 my-2">
-          <div className="rounded-3xl border border-slate-200/50 bg-white/80 p-2 shadow-xl backdrop-blur-md">
-            <button
-              onClick={() => void handleShare()}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-300 transition hover:scale-[1.01] hover:from-indigo-700 hover:to-violet-700 active:scale-[0.98]"
-            >
-              <Share2 size={18} />
-              Share Summary
-            </button>
-          </div>
+        <div className="fixed bottom-6 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2">
+          <button
+            onClick={openShareModal}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:brightness-110 active:scale-[0.98]"
+          >
+            <Share2 size={17} strokeWidth={2.4} />
+            Share Summary
+          </button>
         </div>
+
+        <Footer />
 
         <SettingsModal
           open={settingsOpen}
           initialBankDetails={bankDetails}
           initialQrCode={paymentQrCode}
+          initialQrPayload={qrPayload}
           onClose={() => setSettingsOpen(false)}
           onSave={saveSettings}
           onNotify={showToast}
@@ -455,6 +551,14 @@ export default function Home() {
           qrCode={paymentQrCode}
           bankDetails={bankDetails}
           onClose={() => setQrModalOpen(false)}
+        />
+
+        <ShareModal
+          open={shareModalOpen}
+          url={sharePayload?.url ?? ''}
+          text={sharePayload?.text ?? ''}
+          onClose={() => setShareModalOpen(false)}
+          onNotify={showToast}
         />
 
         <HistoryModal

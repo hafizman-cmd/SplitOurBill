@@ -19,13 +19,11 @@ export default function PeopleManager({ people, onAdd, onRemove }: Props) {
   };
 
   return (
-    <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200/60">
-      <div className="mb-3 flex items-center gap-2">
-        <Users size={16} className="text-indigo-600" />
-        <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+    <section className="glass-card p-5">
+      <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <Users className="h-4 w-4 text-blue-400" />
           People
-        </h2>
-      </div>
+      </h2>
       <div className="flex gap-2">
         <input
           value={personInput}
@@ -34,12 +32,12 @@ export default function PeopleManager({ people, onAdd, onRemove }: Props) {
             if (e.key === 'Enter') addPerson();
           }}
           placeholder="Friend's name"
-          className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100"
+          className="glass-input min-w-0 flex-1 rounded-xl px-4 py-2.5 text-sm outline-none transition"
         />
         <button
           onClick={addPerson}
           aria-label="Add person"
-          className="flex items-center justify-center rounded-xl bg-indigo-600 px-4 text-white shadow-sm transition active:scale-95 hover:bg-indigo-700"
+          className="flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 text-white shadow-lg shadow-blue-500/25 transition active:scale-95 hover:brightness-110"
         >
           <Plus size={18} />
         </button>
@@ -49,13 +47,13 @@ export default function PeopleManager({ people, onAdd, onRemove }: Props) {
           {people.map((p) => (
             <span
               key={p}
-              className="flex items-center gap-1.5 rounded-full bg-indigo-100 py-1.5 pl-3 pr-1.5 text-xs font-semibold text-indigo-700"
+              className="flex items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-600/15 py-1.5 pl-3 pr-1.5 text-xs font-semibold text-blue-300"
             >
               {p}
               <button
                 onClick={() => onRemove(p)}
                 aria-label={`Remove ${p}`}
-                className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-200/70 text-indigo-600 transition hover:bg-indigo-300 active:scale-90"
+                className="flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-slate-300 transition hover:bg-white/20 active:scale-90"
               >
                 <X size={12} />
               </button>

@@ -25,13 +25,11 @@ export default function ReceiptScanner({
   };
 
   return (
-    <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200/60">
-      <div className="mb-3 flex items-center gap-2">
-        <Camera size={16} className="text-indigo-600" />
-        <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">
-          AI Receipt Scanner
-        </h2>
-      </div>
+    <section className="glass-card p-5">
+      <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <Camera className="h-4 w-4 text-blue-400" />
+          Receipt Scanner
+      </h2>
 
       <input
         ref={fileInputRef}
@@ -47,7 +45,7 @@ export default function ReceiptScanner({
           type="button"
           onClick={onOpenCamera}
           disabled={scanning}
-          className="flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-3.5 text-sm font-bold text-white shadow-md shadow-indigo-200 transition hover:bg-indigo-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-3.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Camera size={18} />
           Take Photo
@@ -56,7 +54,7 @@ export default function ReceiptScanner({
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={scanning}
-          className="flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-indigo-300 bg-indigo-50/60 py-3.5 text-sm font-bold text-indigo-600 transition hover:bg-indigo-100/70 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-blue-500/30 bg-white/5 py-3.5 text-sm font-medium text-slate-300 transition hover:bg-white/10 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Upload size={18} />
           Upload File
@@ -64,14 +62,14 @@ export default function ReceiptScanner({
       </div>
 
       {scanning && (
-        <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700">
+        <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-blue-500/30 bg-blue-600/10 px-4 py-3 text-sm font-semibold text-blue-300">
           <Loader2 size={16} className="animate-spin" />
-          Scanning receipt — AI is reading your items
+          Scanning Receipt
         </div>
       )}
 
       {scanError && (
-        <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600">
+        <p className="mt-3 rounded-xl border border-rose-300/15 bg-rose-400/10 px-3 py-2 text-xs font-medium text-rose-100">
           {scanError}
         </p>
       )}

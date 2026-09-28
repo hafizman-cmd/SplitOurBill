@@ -1,3 +1,97 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    min-height: 100vh;
+    overflow-x: hidden;
+    background: #0f1117;
+    color: #f8fafc;
+  }
+
+  .ambient-root {
+    position: relative;
+    isolation: isolate;
+    background:
+      radial-gradient(ellipse 75% 48% at 8% -4%, rgb(0 122 255 / 0.4), transparent 66%),
+      radial-gradient(ellipse 62% 42% at 98% 16%, rgb(0 122 255 / 0.16), transparent 70%),
+      linear-gradient(150deg, #0f1117 0%, #1d1d1f 52%, #0f1117 100%);
+  }
+
+  .ambient-root::before,
+  .ambient-root::after {
+    position: fixed;
+    z-index: -1;
+    width: 22rem;
+    height: 22rem;
+    border-radius: 9999px;
+    content: '';
+    filter: blur(78px);
+    opacity: 0.46;
+    pointer-events: none;
+  }
+
+  .ambient-root::before {
+    top: 22%;
+    left: -11rem;
+    background: #007aff;
+  }
+
+  .ambient-root::after {
+    top: 2.5rem;
+    right: -5rem;
+    width: 20rem;
+    height: 20rem;
+    background: #007aff;
+    opacity: 0.15;
+  }
+
+  button,
+  input,
+  select {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+    }
+
+    body {
+      background: #f5f5f7;
+      color: #1d1d1f;
+    }
+
+    .ambient-root {
+      background:
+        radial-gradient(ellipse 72% 48% at 8% -4%, rgb(0 122 255 / 0.2), transparent 66%),
+        radial-gradient(ellipse 60% 40% at 98% 16%, rgb(0 122 255 / 0.1), transparent 70%),
+        #f5f5f7;
+    }
+  }
+}
+
+@layer components {
+  .glass-card,
+  .glass-nav,
+  .glass-bar {
+    @apply rounded-2xl border-x border-white/10 border-t border-white/20 border-b border-white/5 bg-slate-900/50 shadow-2xl shadow-black/40 backdrop-blur-xl;
+  }
+
+  .glass-nav {
+    @apply rounded-full bg-slate-950/65 backdrop-blur-lg;
+  }
+
+  .glass-bar {
+    @apply bg-slate-950/70 backdrop-blur-xl;
+  }
+
+  .glass-input {
+    @apply rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-white placeholder:text-slate-500 transition-all focus:border-blue-500/50 focus:outline-none;
+  }
+}

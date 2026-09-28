@@ -7,7 +7,7 @@ export function BrandMark() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #4338ca 0%, #6366f1 50%, #8b5cf6 100%)',
+        background: 'linear-gradient(135deg, #005FCC 0%, #007AFF 55%, #47A3FF 100%)',
       }}
     >
       <svg viewBox="0 0 512 512" style={{ width: '100%', height: '100%' }}>

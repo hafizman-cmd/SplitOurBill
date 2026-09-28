@@ -17,6 +17,7 @@ export type ScanResponse = {
 export type ReceiptSnapshot = {
   items: Item[];
   people: string[];
+  paidStatus: Record<string, boolean>;
   serviceCharge: number;
   tax: number;
   currency?: CurrencyCode;

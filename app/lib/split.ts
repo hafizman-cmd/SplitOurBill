@@ -79,10 +79,19 @@ export function computeSplit(
 
 const DIVIDER = '----------------------------------------';
 
+const ACCOUNT_NUMBER_RE = /^\d[\d\s-]{5,}$/;
+
 function isAccountNumberLine(line: string): boolean {
   const t = line.trim();
   if (t.startsWith('`') && t.endsWith('`')) return false;
-  return /^\d[\d\s-]{5,}$/.test(t);
+  return ACCOUNT_NUMBER_RE.test(t);
+}
+
+export function findAccountNumber(bankDetails: string): string | null {
+  for (const line of bankDetails.split('\n')) {
+    if (isAccountNumberLine(line)) return line.trim();
+  }
+  return null;
 }
 
 export function buildShareText(
@@ -91,6 +100,7 @@ export function buildShareText(
   bankDetails: string,
   currency: CurrencyCode = 'MYR',
   myrRate = 1,
+  shareUrl = '',
 ): string {
   const amt = (n: number) => {
     const base = formatMoney(n, currency);
@@ -137,6 +147,11 @@ export function buildShareText(
         isAccountNumberLine(line) ? `\`${line.trim()}\`` : line.trim(),
       );
     }
+  }
+
+  if (shareUrl) {
+    lines.push('');
+    lines.push(`View breakdown: ${shareUrl}`);
   }
 
   lines.push('');
