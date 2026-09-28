@@ -27,7 +27,7 @@ import ShareModal from './components/ShareModal';
 import PaymentQrModal from './components/PaymentQrModal';
 import HistoryModal from './components/HistoryModal';
 import CropModal from './components/CropModal';
-import CameraScannerModal from './components/CameraScannerModal';
+import CameraModal from './components/CameraModal';
 import Footer from './components/Footer';
 import Toast from './components/Toast';
 
@@ -382,10 +382,9 @@ export default function Home() {
     }
   };
 
-  const handleCameraCapture = (dataUrl: string, autoCropped: boolean) => {
+  const handleCameraCapture = (dataUrl: string) => {
     setCameraOpen(false);
-    if (autoCropped) void scanReceipt(dataUrl);
-    else setCropImage(dataUrl);
+    void scanReceipt(dataUrl);
   };
 
   const handleCameraNativeFile = (file: File) => {
@@ -579,7 +578,7 @@ export default function Home() {
           onClose={() => setCropImage(null)}
         />
 
-        <CameraScannerModal
+        <CameraModal
           open={cameraOpen}
           onCapture={handleCameraCapture}
           onNativeCapture={handleCameraNativeFile}
