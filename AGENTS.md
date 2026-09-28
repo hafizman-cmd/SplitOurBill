@@ -17,6 +17,8 @@ npm run lint    # ESLint (flat config, eslint.config.mjs)
 
 Run `npm run build` and `npm run lint` before finishing any task. Both must pass cleanly. There is no test framework yet; if adding one, prefer Vitest and put pure-logic tests next to `app/lib/`.
 
+IMPORTANT: `npm run dev` and `npm run build` share the same `.next` directory. NEVER run `npm run build` (or `npm run start`) while the dev server is running — it corrupts the dev webpack runtime (MODULE_NOT_FOUND on chunks) and forces a dev-server restart. If the user's dev server is running, verify with `npm run lint` + `npx tsc --noEmit` instead, and run `npm run build` only when the dev server is stopped.
+
 ## Environment
 
 Requires a `.env` file (gitignored) with:

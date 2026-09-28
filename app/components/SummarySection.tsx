@@ -2,13 +2,19 @@
 
 import { QrCode } from 'lucide-react';
 import type { SplitResult } from '../types';
-import { formatRM } from '../lib/utils';
+import {
+  formatMoney,
+  formatMyrEquivalent,
+  type CurrencyCode,
+} from '../lib/currency';
 
 type Props = {
   people: string[];
   calc: SplitResult;
   paymentQrCode: string;
   onShowQr: () => void;
+  currency: CurrencyCode;
+  myrRate: number;
 };
 
 export default function SummarySection({
@@ -16,7 +22,12 @@ export default function SummarySection({
   calc,
   paymentQrCode,
   onShowQr,
+  currency,
+  myrRate,
 }: Props) {
+  const money = (n: number) => formatMoney(n, currency);
+  const eq = (n: number) => formatMyrEquivalent(n, currency, myrRate);
+
   return (
     <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200/60">
       <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
@@ -26,19 +37,47 @@ export default function SummarySection({
       <div className="space-y-1.5 rounded-2xl bg-slate-50 p-4 text-sm ring-1 ring-slate-200/70">
         <div className="flex justify-between text-slate-500">
           <span>Subtotal</span>
-          <span>{formatRM(calc.subtotal)}</span>
+          <span className="flex flex-col items-end leading-tight">
+            <span>{money(calc.subtotal)}</span>
+            {eq(calc.subtotal) && (
+              <span className="text-[10px] font-normal text-slate-400">
+                {eq(calc.subtotal)}
+              </span>
+            )}
+          </span>
         </div>
         <div className="flex justify-between text-slate-500">
           <span>Service Charge ({calc.serviceCharge}%)</span>
-          <span>{formatRM(calc.serviceAmt)}</span>
+          <span className="flex flex-col items-end leading-tight">
+            <span>{money(calc.serviceAmt)}</span>
+            {eq(calc.serviceAmt) && (
+              <span className="text-[10px] font-normal text-slate-400">
+                {eq(calc.serviceAmt)}
+              </span>
+            )}
+          </span>
         </div>
         <div className="flex justify-between text-slate-500">
           <span>Tax ({calc.tax}%)</span>
-          <span>{formatRM(calc.taxAmt)}</span>
+          <span className="flex flex-col items-end leading-tight">
+            <span>{money(calc.taxAmt)}</span>
+            {eq(calc.taxAmt) && (
+              <span className="text-[10px] font-normal text-slate-400">
+                {eq(calc.taxAmt)}
+              </span>
+            )}
+          </span>
         </div>
         <div className="mt-1 flex justify-between border-t border-slate-200 pt-2 font-bold text-slate-800">
           <span>Grand Total</span>
-          <span>{formatRM(calc.grandTotal)}</span>
+          <span className="flex flex-col items-end leading-tight">
+            <span>{money(calc.grandTotal)}</span>
+            {eq(calc.grandTotal) && (
+              <span className="text-[10px] font-normal text-slate-400">
+                {eq(calc.grandTotal)}
+              </span>
+            )}
+          </span>
         </div>
       </div>
 
@@ -62,14 +101,24 @@ export default function SummarySection({
                     </p>
                     <p className="text-[11px] text-slate-400">
                       {entry.items.length > 0
-                        ? `${entry.items.length} item(s) - ${formatRM(entry.raw)} before extras`
+                        ? `${entry.items.length} item(s) - ${formatMoney(
+                            entry.raw,
+                            currency,
+                          )} before extras`
                         : 'No items assigned'}
                     </p>
                   </div>
                 </div>
-                <p className="shrink-0 text-lg font-bold text-indigo-600">
-                  {formatRM(entry.final)}
-                </p>
+                <div className="flex shrink-0 flex-col items-end leading-tight">
+                  <p className="text-lg font-bold text-indigo-600">
+                    {money(entry.final)}
+                  </p>
+                  {eq(entry.final) && (
+                    <p className="text-[10px] font-medium text-slate-400">
+                      {eq(entry.final)}
+                    </p>
+                  )}
+                </div>
               </div>
             );
           })

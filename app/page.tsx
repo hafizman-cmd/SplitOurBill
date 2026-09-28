@@ -2,9 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Share2 } from 'lucide-react';
-import type { Item, ScanResponse, SplitResult } from './types';
-import { QR_STORAGE_KEY, STORAGE_KEY, compressImage, uid } from './lib/utils';
+import type { HistoryEntry, Item, ScanResponse, SplitResult } from './types';
+import {
+  HISTORY_STORAGE_KEY,
+  QR_STORAGE_KEY,
+  STORAGE_KEY,
+  compressImage,
+  loadHistoryFromStorage,
+  uid,
+} from './lib/utils';
 import { buildShareText, computeSplit } from './lib/split';
+import { CURRENCIES, type CurrencyCode } from './lib/currency';
 import Header from './components/Header';
 import ReceiptScanner from './components/ReceiptScanner';
 import PeopleManager from './components/PeopleManager';
@@ -13,6 +21,9 @@ import ChargesSection from './components/ChargesSection';
 import SummarySection from './components/SummarySection';
 import SettingsModal from './components/SettingsModal';
 import PaymentQrModal from './components/PaymentQrModal';
+import HistoryModal from './components/HistoryModal';
+import CropModal from './components/CropModal';
+import CameraScannerModal from './components/CameraScannerModal';
 import Toast from './components/Toast';
 
 export default function Home() {
@@ -20,6 +31,8 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [paymentQrCode, setPaymentQrCode] = useState('');
   const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const [people, setPeople] = useState<string[]>([]);
 
@@ -28,8 +41,14 @@ export default function Home() {
   const [serviceChargeInput, setServiceChargeInput] = useState('0');
   const [taxInput, setTaxInput] = useState('0');
 
+  const [currency, setCurrency] = useState<CurrencyCode>('MYR');
+  const [rateInput, setRateInput] = useState('');
+  const [fetchingRate, setFetchingRate] = useState(false);
+
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [cropImage, setCropImage] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -46,6 +65,7 @@ export default function Home() {
       if (saved) setBankDetails(saved);
       const savedQr = window.localStorage.getItem(QR_STORAGE_KEY);
       if (savedQr) setPaymentQrCode(savedQr);
+      setHistory(loadHistoryFromStorage());
     } catch {
       /* localStorage unavailable */
     }
@@ -63,17 +83,24 @@ export default function Home() {
       showToast('Image is too large. Please use a smaller photo.');
       return;
     }
+    try {
+      const preview = await compressImage(file, 1600);
+      setCropImage(preview);
+    } catch {
+      setScanError('Could not read the image file. Please try again.');
+    }
+  };
 
+  const scanReceipt = async (imageDataUrl: string) => {
+    setCropImage(null);
     setScanning(true);
     setScanError(null);
 
     try {
-      const imageBase64 = await compressImage(file, 1600);
-
       const res = await fetch('/api/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64 }),
+        body: JSON.stringify({ imageBase64: imageDataUrl }),
       });
 
       const data: ScanResponse | null = await res
@@ -104,12 +131,26 @@ export default function Home() {
       }
 
       setItems((prev) => [...prev, ...newItems]);
+      const scannedServiceCharge =
+        typeof data.serviceChargePercent === 'number'
+          ? data.serviceChargePercent
+          : Math.max(0, Number(serviceChargeInput) || 0);
+      const scannedTax =
+        typeof data.taxPercent === 'number'
+          ? data.taxPercent
+          : Math.max(0, Number(taxInput) || 0);
       if (typeof data.serviceChargePercent === 'number') {
         setServiceChargeInput(String(data.serviceChargePercent));
       }
       if (typeof data.taxPercent === 'number') {
         setTaxInput(String(data.taxPercent));
       }
+      saveHistory(
+        data.restaurantName?.trim() || 'Receipt',
+        [...items, ...newItems],
+        scannedServiceCharge,
+        scannedTax,
+      );
       showToast(`Added ${newItems.length} item(s) from receipt`);
     } catch (err) {
       setScanError(
@@ -120,6 +161,78 @@ export default function Home() {
     } finally {
       setScanning(false);
     }
+  };
+
+  const saveHistory = (
+    restaurantName: string,
+    snapshotItems: Item[],
+    serviceCharge: number,
+    tax: number,
+  ) => {
+    const receiptData = {
+      items: snapshotItems,
+      people,
+      serviceCharge,
+      tax,
+      currency,
+      myrRate: currency === 'MYR' ? 1 : myrRate,
+    };
+    const { grandTotal } = computeSplit(snapshotItems, people, serviceCharge, tax);
+    const nowIso = new Date().toISOString();
+    const head = history[0];
+    const isRecentSession =
+      head !== undefined &&
+      Date.now() - new Date(head.date).getTime() < 15 * 60_000;
+    const entry: HistoryEntry = isRecentSession
+      ? {
+          ...head,
+          date: nowIso,
+          restaurantName,
+          grandTotal,
+          itemsCount: snapshotItems.length,
+          receiptData,
+        }
+      : {
+          id: uid(),
+          date: nowIso,
+          restaurantName,
+          grandTotal,
+          itemsCount: snapshotItems.length,
+          receiptData,
+        };
+    const next = [entry, ...history.filter((h) => h.id !== entry.id)].slice(0, 20);
+    setHistory(next);
+    try {
+      window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      /* localStorage unavailable */
+    }
+  };
+
+  const loadHistoryEntry = (entry: HistoryEntry) => {
+    const snap = entry.receiptData;
+    setItems(snap.items);
+    setPeople(snap.people);
+    setServiceChargeInput(String(snap.serviceCharge));
+    setTaxInput(String(snap.tax));
+    setCurrency(snap.currency ?? 'MYR');
+    setRateInput(
+      snap.currency && snap.currency !== 'MYR'
+        ? String(snap.myrRate ?? CURRENCIES[snap.currency].defaultRate)
+        : '',
+    );
+    setHistoryOpen(false);
+    showToast(`Loaded ${entry.restaurantName} from history`);
+  };
+
+  const clearHistory = () => {
+    setHistory([]);
+    try {
+      window.localStorage.removeItem(HISTORY_STORAGE_KEY);
+    } catch {
+      /* localStorage unavailable */
+    }
+    showToast('History cleared');
   };
 
   const addPerson = (name: string) => {
@@ -172,6 +285,46 @@ export default function Home() {
     );
   };
 
+  const myrRate = currency === 'MYR' ? 1 : Math.max(0, Number(rateInput) || 0);
+
+  const handleCurrencyChange = (code: CurrencyCode) => {
+    setCurrency(code);
+    setRateInput(code === 'MYR' ? '' : String(CURRENCIES[code].defaultRate));
+  };
+
+  const fetchExchangeRate = async () => {
+    if (currency === 'MYR' || fetchingRate) return;
+    setFetchingRate(true);
+    try {
+      const res = await fetch(
+        `https://api.frankfurter.app/latest?from=${currency}&to=MYR`,
+      );
+      if (!res.ok) throw new Error('bad status');
+      const data: unknown = await res.json();
+      const rate = Number(
+        (data as { rates?: { MYR?: number } } | null)?.rates?.MYR,
+      );
+      if (!Number.isFinite(rate) || rate <= 0) throw new Error('bad rate');
+      setRateInput(String(Math.round(rate * 100000) / 100000));
+      showToast('Exchange rate updated');
+    } catch {
+      showToast('Could not fetch the exchange rate. Please enter it manually.');
+    } finally {
+      setFetchingRate(false);
+    }
+  };
+
+  const handleCameraCapture = (dataUrl: string, autoCropped: boolean) => {
+    setCameraOpen(false);
+    if (autoCropped) void scanReceipt(dataUrl);
+    else setCropImage(dataUrl);
+  };
+
+  const handleCameraNativeFile = (file: File) => {
+    setCameraOpen(false);
+    void handleFileSelected(file);
+  };
+
   const calc = useMemo<SplitResult>(
     () =>
       computeSplit(
@@ -188,7 +341,7 @@ export default function Home() {
       showToast('Add items and people first.');
       return;
     }
-    const text = buildShareText(calc, people, bankDetails);
+    const text = buildShareText(calc, people, bankDetails, currency, myrRate);
     try {
       if (typeof navigator !== 'undefined' && navigator.share) {
         await navigator.share({ title: 'Kira-Kira Bill Split', text });
@@ -224,13 +377,17 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 antialiased">
       <div className="mx-auto flex min-h-screen max-w-md flex-col bg-slate-100 shadow-xl sm:shadow-none">
-        <Header onOpenSettings={() => setSettingsOpen(true)} />
+        <Header
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenHistory={() => setHistoryOpen(true)}
+        />
 
         <main className="space-y-4 px-4 pb-20 pt-3">
           <ReceiptScanner
             scanning={scanning}
             scanError={scanError}
             onSelect={handleFileSelected}
+            onOpenCamera={() => setCameraOpen(true)}
           />
 
           <PeopleManager
@@ -245,6 +402,8 @@ export default function Home() {
             onAddManualItem={addManualItem}
             onRemoveItem={removeItem}
             onToggleAssignment={toggleAssignment}
+            currency={currency}
+            myrRate={myrRate}
           />
 
           <ChargesSection
@@ -252,6 +411,12 @@ export default function Home() {
             taxInput={taxInput}
             onServiceChargeChange={setServiceChargeInput}
             onTaxChange={setTaxInput}
+            currency={currency}
+            onCurrencyChange={handleCurrencyChange}
+            rateInput={rateInput}
+            onRateChange={setRateInput}
+            onFetchRate={() => void fetchExchangeRate()}
+            fetchingRate={fetchingRate}
           />
 
           <SummarySection
@@ -259,6 +424,8 @@ export default function Home() {
             calc={calc}
             paymentQrCode={paymentQrCode}
             onShowQr={() => setQrModalOpen(true)}
+            currency={currency}
+            myrRate={myrRate}
           />
         </main>
 
@@ -288,6 +455,31 @@ export default function Home() {
           qrCode={paymentQrCode}
           bankDetails={bankDetails}
           onClose={() => setQrModalOpen(false)}
+        />
+
+        <HistoryModal
+          open={historyOpen}
+          entries={history}
+          onClose={() => setHistoryOpen(false)}
+          onSelectEntry={loadHistoryEntry}
+          onClear={clearHistory}
+        />
+
+        <CropModal
+          open={!!cropImage}
+          imageSrc={cropImage ?? ''}
+          onCrop={(dataUrl) => void scanReceipt(dataUrl)}
+          onSkip={() => {
+            if (cropImage) void scanReceipt(cropImage);
+          }}
+          onClose={() => setCropImage(null)}
+        />
+
+        <CameraScannerModal
+          open={cameraOpen}
+          onCapture={handleCameraCapture}
+          onNativeCapture={handleCameraNativeFile}
+          onClose={() => setCameraOpen(false)}
         />
 
         {toast && <Toast message={toast} />}

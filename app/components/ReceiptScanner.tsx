@@ -1,73 +1,75 @@
 'use client';
 
 import { useRef } from 'react';
-import { Camera, Loader2, Receipt } from 'lucide-react';
+import { Camera, Loader2, Upload } from 'lucide-react';
 
 type Props = {
   scanning: boolean;
   scanError: string | null;
   onSelect: (file: File) => void | Promise<void>;
+  onOpenCamera: () => void;
 };
 
-export default function ReceiptScanner({ scanning, scanError, onSelect }: Props) {
+export default function ReceiptScanner({
+  scanning,
+  scanError,
+  onSelect,
+  onOpenCamera,
+}: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) void onSelect(file);
+    e.currentTarget.value = '';
+  };
+
   return (
-    <section className="overflow-hidden rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200/60">
+    <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200/60">
       <div className="mb-3 flex items-center gap-2">
         <Camera size={16} className="text-indigo-600" />
         <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">
           AI Receipt Scanner
         </h2>
       </div>
-      <label className="block cursor-pointer">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        disabled={scanning}
+        onChange={handleInputChange}
+      />
+
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={onOpenCamera}
           disabled={scanning}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void onSelect(file);
-            if (fileInputRef.current) fileInputRef.current.value = '';
-          }}
-        />
-        <div
-          className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition-colors ${
-            scanning
-              ? 'border-indigo-400 bg-indigo-50'
-              : 'border-indigo-300 bg-indigo-50/60 hover:bg-indigo-100/70'
-          }`}
+          className="flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-3.5 text-sm font-bold text-white shadow-md shadow-indigo-200 transition hover:bg-indigo-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {scanning ? (
-            <>
-              <Loader2
-                size={28}
-                className="mb-2 animate-spin text-indigo-600"
-              />
-              <p className="text-sm font-semibold text-indigo-700">
-                Scanning receipt...
-              </p>
-              <p className="mt-1 text-xs text-indigo-400">
-                AI is reading your items
-              </p>
-            </>
-          ) : (
-            <>
-              <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-md shadow-indigo-200">
-                <Receipt size={22} />
-              </div>
-              <p className="text-sm font-semibold text-slate-700">
-                Tap to upload a receipt photo
-              </p>
-              <p className="mt-1 text-xs text-slate-400">
-                Items, service charge &amp; tax are detected automatically
-              </p>
-            </>
-          )}
+          <Camera size={18} />
+          Take Photo
+        </button>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={scanning}
+          className="flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-indigo-300 bg-indigo-50/60 py-3.5 text-sm font-bold text-indigo-600 transition hover:bg-indigo-100/70 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Upload size={18} />
+          Upload File
+        </button>
+      </div>
+
+      {scanning && (
+        <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700">
+          <Loader2 size={16} className="animate-spin" />
+          Scanning receipt — AI is reading your items
         </div>
-      </label>
+      )}
+
       {scanError && (
         <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600">
           {scanError}

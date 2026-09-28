@@ -33,6 +33,7 @@ type ScanPayload = {
   items: { name: string; price: number }[];
   serviceChargePercent: number;
   taxPercent: number;
+  restaurantName?: string;
 };
 
 function extractJsonText(text: unknown): string | null {
@@ -82,10 +83,13 @@ function coerceScanResult(data: unknown): ScanPayload | null {
     return Math.min(n, 100);
   };
 
+  const restaurantName = String(obj.restaurantName ?? '').trim().slice(0, 60);
+
   return {
     items,
     serviceChargePercent: percent(obj.serviceChargePercent),
     taxPercent: percent(obj.taxPercent),
+    ...(restaurantName ? { restaurantName } : {}),
   };
 }
 
@@ -118,7 +122,7 @@ function buildRequestBody(model: string, imageDataUrl: string) {
         content: [
           {
             type: 'text',
-            text: 'Extract line items, prices, service charge %, and tax % from this receipt. Return ONLY valid JSON: {"items":[{"name":"string","price":number}],"serviceChargePercent":number,"taxPercent":number}',
+            text: 'Extract the restaurant name, line items, prices, service charge %, and tax % from this receipt. Return ONLY valid JSON: {"restaurantName":"string","items":[{"name":"string","price":number}],"serviceChargePercent":number,"taxPercent":number}',
           },
           { type: 'image_url', image_url: { url: imageDataUrl } },
         ],

@@ -1,3 +1,5 @@
+import type { CurrencyCode } from './lib/currency';
+
 export type Item = {
   id: string;
   name: string;
@@ -9,6 +11,25 @@ export type ScanResponse = {
   items: { name: string; price: number }[];
   serviceChargePercent: number;
   taxPercent: number;
+  restaurantName?: string;
+};
+
+export type ReceiptSnapshot = {
+  items: Item[];
+  people: string[];
+  serviceCharge: number;
+  tax: number;
+  currency?: CurrencyCode;
+  myrRate?: number;
+};
+
+export type HistoryEntry = {
+  id: string;
+  date: string;
+  restaurantName: string;
+  grandTotal: number;
+  itemsCount: number;
+  receiptData: ReceiptSnapshot;
 };
 
 export type PersonBreakdown = {

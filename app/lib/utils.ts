@@ -1,5 +1,8 @@
+import type { HistoryEntry } from '../types';
+
 export const STORAGE_KEY = 'kira-kira.bank-details';
 export const QR_STORAGE_KEY = 'kira-kira.payment-qr-code';
+export const HISTORY_STORAGE_KEY = 'kira_kira_history';
 
 export const formatRM = (n: number) => `RM ${n.toFixed(2)}`;
 
@@ -38,3 +41,28 @@ export const compressImage = (file: File, maxDim = 800): Promise<string> =>
     reader.onerror = () => reject(new Error('Could not read the file.'));
     reader.readAsDataURL(file);
   });
+
+export function loadHistoryFromStorage(): HistoryEntry[] {
+  try {
+    const raw = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((e): e is HistoryEntry => {
+      if (typeof e !== 'object' || e === null) return false;
+      const entry = e as Record<string, unknown>;
+      return (
+        typeof entry.id === 'string' &&
+        typeof entry.date === 'string' &&
+        typeof entry.restaurantName === 'string' &&
+        typeof entry.grandTotal === 'number' &&
+        typeof entry.itemsCount === 'number' &&
+        typeof entry.receiptData === 'object' &&
+        entry.receiptData !== null &&
+        Array.isArray((entry.receiptData as Record<string, unknown>).items)
+      );
+    });
+  } catch {
+    return [];
+  }
+}

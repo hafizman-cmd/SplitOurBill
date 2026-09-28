@@ -3,7 +3,11 @@
 import { useState } from 'react';
 import { Check, Plus, Receipt, Trash2 } from 'lucide-react';
 import type { Item } from '../types';
-import { formatRM } from '../lib/utils';
+import {
+  formatMoney,
+  formatMyrEquivalent,
+  type CurrencyCode,
+} from '../lib/currency';
 
 type Props = {
   items: Item[];
@@ -11,6 +15,8 @@ type Props = {
   onAddManualItem: (name: string, price: number) => void;
   onRemoveItem: (id: string) => void;
   onToggleAssignment: (itemId: string, person: string) => void;
+  currency: CurrencyCode;
+  myrRate: number;
 };
 
 export default function ItemList({
@@ -19,6 +25,8 @@ export default function ItemList({
   onAddManualItem,
   onRemoveItem,
   onToggleAssignment,
+  currency,
+  myrRate,
 }: Props) {
   const [manualName, setManualName] = useState('');
   const [manualPrice, setManualPrice] = useState('');
@@ -62,9 +70,16 @@ export default function ItemList({
                 <p className="min-w-0 flex-1 break-words text-sm font-semibold text-slate-800">
                   {it.name}
                 </p>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-sm font-bold text-slate-700">
-                    {formatRM(it.price)}
+                <div className="flex shrink-0 items-start gap-2">
+                  <span className="flex flex-col items-end leading-tight">
+                    <span className="text-sm font-bold text-slate-700">
+                      {formatMoney(it.price, currency)}
+                    </span>
+                    {formatMyrEquivalent(it.price, currency, myrRate) && (
+                      <span className="text-[10px] font-medium text-slate-400">
+                        {formatMyrEquivalent(it.price, currency, myrRate)}
+                      </span>
+                    )}
                   </span>
                   <button
                     onClick={() => onRemoveItem(it.id)}
@@ -102,8 +117,8 @@ export default function ItemList({
               </div>
               {it.assigned.length > 0 && (
                 <p className="mt-2.5 text-[11px] font-medium text-indigo-600">
-                  {formatRM(it.price / it.assigned.length)} each - shared by{' '}
-                  {it.assigned.length}
+                  {formatMoney(it.price / it.assigned.length, currency)} each -
+                  shared by {it.assigned.length}
                   {it.assigned.length > 1 ? ' people' : ' person'}
                 </p>
               )}

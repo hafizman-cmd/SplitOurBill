@@ -1,6 +1,12 @@
-import { Receipt, Settings } from 'lucide-react';
+import { History, Receipt, Settings } from 'lucide-react';
 
-export default function Header({ onOpenSettings }: { onOpenSettings: () => void }) {
+export default function Header({
+  onOpenSettings,
+  onOpenHistory,
+}: {
+  onOpenSettings: () => void;
+  onOpenHistory: () => void;
+}) {
   return (
     <header className="sticky top-3 z-50 mx-4 my-2 flex items-center justify-between rounded-2xl border border-white/10 bg-gradient-to-r from-indigo-600/90 to-violet-600/90 px-5 py-4 text-white shadow-lg backdrop-blur-md">
       <div className="flex items-center gap-2">
@@ -14,13 +20,22 @@ export default function Header({ onOpenSettings }: { onOpenSettings: () => void 
           </p>
         </div>
       </div>
-      <button
-        onClick={onOpenSettings}
-        aria-label="Open settings"
-        className="rounded-full p-2 transition-colors hover:bg-white/15 active:bg-white/25"
-      >
-        <Settings size={20} />
-      </button>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={onOpenHistory}
+          aria-label="Open receipt history"
+          className="rounded-full p-2 transition-colors hover:bg-white/15 active:bg-white/25"
+        >
+          <History size={20} />
+        </button>
+        <button
+          onClick={onOpenSettings}
+          aria-label="Open settings"
+          className="rounded-full p-2 transition-colors hover:bg-white/15 active:bg-white/25"
+        >
+          <Settings size={20} />
+        </button>
+      </div>
     </header>
   );
 }

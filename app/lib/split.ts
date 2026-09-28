@@ -1,5 +1,6 @@
 import type { Item, PersonBreakdown, SplitResult } from '../types';
-import { formatRM, round2 } from './utils';
+import { round2 } from './utils';
+import { formatMoney, type CurrencyCode } from './currency';
 
 export function computeSplit(
   items: Item[],
@@ -76,43 +77,70 @@ export function computeSplit(
   };
 }
 
+const DIVIDER = '----------------------------------------';
+
+function isAccountNumberLine(line: string): boolean {
+  const t = line.trim();
+  if (t.startsWith('`') && t.endsWith('`')) return false;
+  return /^\d[\d\s-]{5,}$/.test(t);
+}
+
 export function buildShareText(
   calc: SplitResult,
   people: string[],
   bankDetails: string,
+  currency: CurrencyCode = 'MYR',
+  myrRate = 1,
 ): string {
+  const amt = (n: number) => {
+    const base = formatMoney(n, currency);
+    if (currency === 'MYR' || !Number.isFinite(myrRate) || myrRate <= 0) {
+      return base;
+    }
+    return `${base} (≈ RM ${(n * myrRate).toFixed(2)})`;
+  };
   const lines: string[] = [];
   lines.push('Kira-Kira - Bill Split Summary');
   lines.push('');
-  lines.push(`Subtotal: ${formatRM(calc.subtotal)}`);
-  lines.push(
-    `Service Charge (${calc.serviceCharge}%): ${formatRM(calc.serviceAmt)}`,
-  );
-  lines.push(`Tax (${calc.tax}%): ${formatRM(calc.taxAmt)}`);
-  lines.push(`Grand Total: ${formatRM(calc.grandTotal)}`);
+  lines.push(DIVIDER);
+  lines.push('TOTAL AMOUNT DUE');
+  lines.push(DIVIDER);
+  lines.push(`Subtotal: ${amt(calc.subtotal)}`);
+  lines.push(`Service Charge (${calc.serviceCharge}%): ${amt(calc.serviceAmt)}`);
+  lines.push(`Tax (${calc.tax}%): ${amt(calc.taxAmt)}`);
+  lines.push(`Grand Total: ${amt(calc.grandTotal)}`);
   lines.push('');
 
-  lines.push('--- Breakdown ---');
+  lines.push(DIVIDER);
+  lines.push('ITEM BREAKDOWN');
+  lines.push(DIVIDER);
   for (const p of people) {
     const entry = calc.perPerson[p];
-    lines.push(`${p} pays ${formatRM(entry.final)}`);
+    lines.push(`${p} pays ${amt(entry.final)}`);
     for (const it of entry.items) {
       const shared =
         it.coSharers.length > 0
           ? ` (shared with ${it.coSharers.join(', ')})`
           : '';
-      lines.push(`  - ${it.name}: ${formatRM(it.share)}${shared}`);
+      lines.push(`  • ${it.name}: ${amt(it.share)}${shared}`);
     }
-    if (entry.items.length === 0) lines.push('  (no items assigned)');
+    if (entry.items.length === 0) lines.push('  • No items assigned');
   }
 
-  if (bankDetails) {
+  if (bankDetails.trim()) {
     lines.push('');
-    lines.push('--- Payment (DuitNow / Bank) ---');
-    lines.push(bankDetails);
+    lines.push(DIVIDER);
+    lines.push('PAYMENT DETAILS');
+    lines.push(DIVIDER);
+    for (const line of bankDetails.split('\n')) {
+      lines.push(
+        isAccountNumberLine(line) ? `\`${line.trim()}\`` : line.trim(),
+      );
+    }
   }
 
   lines.push('');
+  lines.push(DIVIDER);
   lines.push('Split fairly with Kira-Kira.');
   return lines.join('\n');
 }
