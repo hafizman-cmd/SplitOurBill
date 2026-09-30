@@ -30,6 +30,7 @@ import CropModal from './components/CropModal';
 import CameraModal from './components/CameraModal';
 import Footer from './components/Footer';
 import Toast from './components/Toast';
+import { logEvent } from '@/lib/telemetry';
 
 export default function Home() {
   const [bankDetails, setBankDetails] = useState('');
@@ -170,6 +171,17 @@ export default function Home() {
       }
       setRestaurantName(data.restaurantName?.trim() || '');
       setBillDate(new Date().toISOString());
+      const scannedTotal = computeSplit(
+        [...items, ...newItems],
+        people,
+        scannedServiceCharge,
+        scannedTax,
+        scannedRoundingAdjustment,
+      ).grandTotal;
+      logEvent('scan_completed', {
+        items_count: newItems.length,
+        total_rm: scannedTotal,
+      });
       saveHistory(
         data.restaurantName?.trim() || 'Receipt',
         [...items, ...newItems],
@@ -423,6 +435,7 @@ export default function Home() {
   );
 
   const openShareModal = () => {
+    logEvent('share_summary_tapped');
     if (items.length === 0 || people.length === 0) {
       showToast('Add items and people first.');
       return;

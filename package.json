@@ -9,6 +9,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "jsqr": "^1.4.0",
     "lucide-react": "^0.474.0",
     "lz-string": "^1.5.0",
@@ -16,7 +17,8 @@
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-image-crop": "^11.1.2"
+    "react-image-crop": "^11.1.2",
+    "ua-parser-js": "^2.0.10"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",

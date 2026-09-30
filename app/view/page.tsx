@@ -16,6 +16,7 @@ import {
 import { decodeBillFromUrl, type SharedBill } from '../lib/urlState';
 import { formatMoney, formatMyrEquivalent } from '../lib/currency';
 import { findAccountNumber } from '../lib/split';
+import { logEvent } from '@/lib/telemetry';
 
 type Flash = { key: string; ok: boolean } | null;
 
@@ -47,6 +48,10 @@ function GuestBillView() {
   useEffect(() => {
     setBill(decodeBillFromUrl(searchParams.get('b')));
   }, [searchParams]);
+
+  useEffect(() => {
+    logEvent('app_open');
+  }, []);
 
   useEffect(() => {
     if (!qrExpanded) return;

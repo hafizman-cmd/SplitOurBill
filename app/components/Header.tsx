@@ -1,4 +1,5 @@
-import { History, Settings, ShieldCheck } from 'lucide-react';
+import Link from 'next/link';
+import { BarChart3, History, Settings, ShieldCheck } from 'lucide-react';
 
 export default function Header({
   onOpenSettings,
@@ -19,19 +20,26 @@ export default function Header({
         </div>
       </div>
       <div className="flex items-center gap-1">
+        <Link
+          href="/admin"
+          aria-label="Open analytics admin"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:bg-white/10 active:scale-95"
+        >
+          <BarChart3 className="w-4 h-4 text-slate-300 hover:text-white" />
+        </Link>
         <button
           onClick={onOpenHistory}
           aria-label="Open receipt history"
-          className="rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:text-white active:scale-95"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition hover:text-white active:scale-95"
         >
-          <History size={19} strokeWidth={2.2} />
+          <History className="w-4 h-4" />
         </button>
         <button
           onClick={onOpenSettings}
           aria-label="Open settings"
-          className="rounded-full border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:text-white active:scale-95"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition hover:text-white active:scale-95"
         >
-          <Settings size={19} strokeWidth={2.2} />
+          <Settings className="w-4 h-4" />
         </button>
       </div>
     </header>
