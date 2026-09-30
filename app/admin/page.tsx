@@ -11,6 +11,7 @@ import {
   RotateCw,
   Smartphone,
 } from 'lucide-react';
+import { KiraKiraLogo } from '../components/ui/logo';
 
 type Distribution = { label: string; count: number };
 
@@ -70,7 +71,7 @@ function eventBadge(eventName: string): { label: string; className: string } {
     return { label: 'Receipt Scan', className: 'border-emerald-400/30 bg-emerald-400/15 text-emerald-200' };
   }
   if (eventName === 'share_summary' || eventName === 'share_summary_tapped') {
-    return { label: 'Summary Shared', className: 'border-violet-400/30 bg-violet-500/15 text-violet-200' };
+    return { label: 'Summary Shared', className: 'border-cyan-400/30 bg-cyan-500/15 text-cyan-200' };
   }
   return { label: eventName.replace(/_/g, ' '), className: 'border-white/15 bg-white/5 text-slate-300' };
 }
@@ -185,7 +186,7 @@ function Dashboard({ analytics, loading, onRefresh, onLogout }: { analytics: Ana
       <div className="mx-auto max-w-5xl">
         <header className="sticky top-3 z-40 mx-2 mb-6 flex items-center justify-between gap-2 rounded-2xl border border-white/15 bg-slate-900/80 p-2.5 backdrop-blur-xl sm:mx-4 sm:p-3">
           <Link href="/" className="flex h-9 shrink-0 items-center rounded-xl border border-white/10 bg-white/5 px-2.5 text-slate-300 transition-colors hover:bg-white/10 sm:px-3"><ArrowLeft className="w-4 h-4" /><span className="ml-1.5 hidden text-xs font-medium sm:inline">Back to App</span></Link>
-          <div className="flex min-w-0 flex-1 items-center justify-center gap-2 sm:justify-start"><BarChart3 className="w-4 h-4 shrink-0 text-blue-400" /><h1 className="truncate text-xs font-bold text-white sm:text-sm">Kira-Kira Analytics</h1><span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" aria-label="Live" /></div>
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-2 sm:justify-start"><KiraKiraLogo className="h-7 w-7" /><h1 className="truncate text-xs font-bold tracking-tight text-white sm:text-sm">Kira-Kira Analytics</h1><span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" aria-label="Live" /></div>
           <div className="flex items-center gap-1.5">
             <button type="button" onClick={onRefresh} aria-label="Refresh analytics" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white"><RotateCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></button>
             <button type="button" onClick={onLogout} aria-label="Log out" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white"><LogOut className="w-4 h-4" /></button>

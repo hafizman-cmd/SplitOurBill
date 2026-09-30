@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { BarChart3, History, Settings, ShieldCheck } from 'lucide-react';
+import { BarChart3, History, Settings } from 'lucide-react';
+import { KiraKiraLogo } from './ui/logo';
 
 export default function Header({
   onOpenSettings,
@@ -11,9 +12,7 @@ export default function Header({
   return (
     <header className="glass-nav sticky top-4 z-50 mx-4 my-3 flex items-center justify-between px-5 py-3 text-white">
       <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-blue-500/30 bg-blue-600/20 text-blue-400">
-          <ShieldCheck size={21} strokeWidth={2.3} />
-        </div>
+        <KiraKiraLogo className="h-10 w-10" />
         <div className="min-w-0">
           <h1 className="text-xl font-bold tracking-tight text-white">Kira-Kira</h1>
           <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-widest text-slate-400">SPLIT BILLS FAIRLY</p>

@@ -16,6 +16,7 @@ import {
 import { decodeBillFromUrl, type SharedBill } from '../lib/urlState';
 import { formatMoney, formatMyrEquivalent } from '../lib/currency';
 import { findAccountNumber } from '../lib/split';
+import { KiraKiraLogo } from '../components/ui/logo';
 import { logEvent } from '@/lib/telemetry';
 
 type Flash = { key: string; ok: boolean } | null;
@@ -173,13 +174,10 @@ function GuestBillView() {
     <div className="flex min-h-screen flex-col items-center justify-start gap-4 bg-transparent px-4 pb-28 pt-4 text-slate-100 antialiased">
       <div className="mx-auto flex w-full max-w-md flex-col items-center justify-start gap-4 bg-transparent">
         <header className="glass-nav sticky top-3 z-50 mx-4 my-3 flex items-center gap-3 px-4 py-3 text-white">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-blue-500/30 bg-blue-600/20 text-blue-100">
-            <ShieldCheck size={20} strokeWidth={2.3} />
-          </div>
+          <KiraKiraLogo className="h-10 w-10" />
           <div className="min-w-0">
-            <h1 className="truncate text-[15px] font-bold leading-tight tracking-tight">
-              {bill.restaurantName}
-            </h1>
+            <p className="text-[11px] font-bold tracking-tight text-white">Kira-Kira</p>
+            <h1 className="truncate text-[15px] font-bold leading-tight tracking-tight">{bill.restaurantName}</h1>
             <p className="mt-0.5 truncate text-[10px] font-medium tracking-wide text-slate-400">
               {dateLabel ? `${dateLabel} - ` : ''}Shared by your host
             </p>
