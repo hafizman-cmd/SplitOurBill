@@ -7,14 +7,16 @@ export function computeSplit(
   people: string[],
   serviceChargePercent: number,
   taxPercent: number,
+  roundingAdjustment = 0,
 ): SplitResult {
   const serviceCharge = Math.max(0, serviceChargePercent) || 0;
   const tax = Math.max(0, taxPercent) || 0;
+  const rounding = Number.isFinite(roundingAdjustment) ? round2(roundingAdjustment) : 0;
 
   const subtotal = round2(items.reduce((sum, it) => sum + it.price, 0));
   const serviceAmt = round2((subtotal * serviceCharge) / 100);
   const taxAmt = round2((subtotal * tax) / 100);
-  const grandTotal = round2(subtotal + serviceAmt + taxAmt);
+  const grandTotal = round2(subtotal + serviceAmt + taxAmt + rounding);
   const multiplier = subtotal > 0 ? grandTotal / subtotal : 0;
 
   const perPerson: Record<string, PersonBreakdown> = {};
@@ -71,6 +73,7 @@ export function computeSplit(
     serviceAmt,
     tax,
     taxAmt,
+    roundingAdjustment: rounding,
     grandTotal,
     multiplier,
     perPerson,
@@ -118,6 +121,9 @@ export function buildShareText(
   lines.push(`Subtotal: ${amt(calc.subtotal)}`);
   lines.push(`Service Charge (${calc.serviceCharge}%): ${amt(calc.serviceAmt)}`);
   lines.push(`Tax (${calc.tax}%): ${amt(calc.taxAmt)}`);
+  if (calc.roundingAdjustment !== 0) {
+    lines.push(`Rounding Adjustment: ${amt(calc.roundingAdjustment)}`);
+  }
   lines.push(`Grand Total: ${amt(calc.grandTotal)}`);
   lines.push('');
 

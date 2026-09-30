@@ -11,6 +11,7 @@ export type ScanResponse = {
   items: { name: string; price: number }[];
   serviceChargePercent: number;
   taxPercent: number;
+  roundingAdjustment: number;
   restaurantName?: string;
 };
 
@@ -20,6 +21,7 @@ export type ReceiptSnapshot = {
   paidStatus: Record<string, boolean>;
   serviceCharge: number;
   tax: number;
+  roundingAdjustment?: number;
   currency?: CurrencyCode;
   myrRate?: number;
 };
@@ -45,6 +47,7 @@ export type SplitResult = {
   serviceAmt: number;
   tax: number;
   taxAmt: number;
+  roundingAdjustment: number;
   grandTotal: number;
   multiplier: number;
   perPerson: Record<string, PersonBreakdown>;

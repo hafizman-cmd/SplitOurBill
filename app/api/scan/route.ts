@@ -33,8 +33,47 @@ type ScanPayload = {
   items: { name: string; price: number }[];
   serviceChargePercent: number;
   taxPercent: number;
+  roundingAdjustment: number;
   restaurantName?: string;
 };
+
+const ROUNDING_KEYWORD_RE = /rounding|round\s*off|pelarasan|5\s*sen/i;
+const ROUNDING_VALUE_RE = /([+-]?\s*(?:RM\s*)?\d+(?:\.\d{1,2})?)/i;
+const ROUNDING_LINE_AMOUNT_RE = /(?:rounding|round\s*off|pelarasan|5\s*sen)[^+\-\d]*([+-]?\s*(?:RM\s*)?\d+(?:\.\d{1,2})?)/i;
+
+function signedAmount(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.round(value * 100) / 100;
+  }
+  if (typeof value !== 'string') return null;
+  const match = value.match(ROUNDING_VALUE_RE);
+  if (!match) return null;
+  const amount = Number(match[1].replace(/RM\s*/i, '').replace(/\s+/g, ''));
+  return Number.isFinite(amount) ? Math.round(amount * 100) / 100 : null;
+}
+
+function extractRoundingAdjustment(obj: Record<string, unknown>): number {
+  const direct = signedAmount(obj.roundingAdjustment);
+  if (direct !== null) return direct;
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (!ROUNDING_KEYWORD_RE.test(key)) continue;
+    const amount = signedAmount(value);
+    if (amount !== null) return amount;
+  }
+
+  for (const value of Object.values(obj)) {
+    if (typeof value !== 'string') continue;
+    const line = value
+      .split(/\r?\n/)
+      .find((candidate) => ROUNDING_KEYWORD_RE.test(candidate));
+    if (!line) continue;
+    const lineAmount = line.match(ROUNDING_LINE_AMOUNT_RE)?.[1];
+    const amount = lineAmount ? signedAmount(lineAmount) : null;
+    if (amount !== null) return amount;
+  }
+  return 0;
+}
 
 function extractJsonText(text: unknown): string | null {
   if (typeof text !== 'string' || !text.trim()) return null;
@@ -89,6 +128,7 @@ function coerceScanResult(data: unknown): ScanPayload | null {
     items,
     serviceChargePercent: percent(obj.serviceChargePercent),
     taxPercent: percent(obj.taxPercent),
+    roundingAdjustment: extractRoundingAdjustment(obj),
     ...(restaurantName ? { restaurantName } : {}),
   };
 }
@@ -122,7 +162,7 @@ function buildRequestBody(model: string, imageDataUrl: string) {
         content: [
           {
             type: 'text',
-            text: 'Extract the restaurant name, line items, prices, service charge %, and tax % from this receipt. Return ONLY valid JSON: {"restaurantName":"string","items":[{"name":"string","price":number}],"serviceChargePercent":number,"taxPercent":number}',
+            text: 'Extract the restaurant name, line items, prices, service charge %, tax %, and any receipt rounding adjustment from this receipt. Inspect lines labelled rounding, round off, pelarasan, or 5 sen. Return ONLY valid JSON: {"restaurantName":"string","items":[{"name":"string","price":number}],"serviceChargePercent":number,"taxPercent":number,"roundingAdjustment":number}. roundingAdjustment must be a signed amount such as 0.01 or -0.02, or 0 when absent.',
           },
           { type: 'image_url', image_url: { url: imageDataUrl } },
         ],

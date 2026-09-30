@@ -11,8 +11,10 @@ import {
 type Props = {
   serviceChargeInput: string;
   taxInput: string;
+  roundingAdjustmentInput: string;
   onServiceChargeChange: (value: string) => void;
   onTaxChange: (value: string) => void;
+  onRoundingAdjustmentChange: (value: string) => void;
   currency: CurrencyCode;
   onCurrencyChange: (value: CurrencyCode) => void;
   rateInput: string;
@@ -24,8 +26,10 @@ type Props = {
 export default function ChargesSection({
   serviceChargeInput,
   taxInput,
+  roundingAdjustmentInput,
   onServiceChargeChange,
   onTaxChange,
+  onRoundingAdjustmentChange,
   currency,
   onCurrencyChange,
   rateInput,
@@ -148,6 +152,23 @@ export default function ChargesSection({
             className="glass-input w-full rounded-xl px-4 py-2.5 text-sm font-semibold outline-none transition"
           />
         </div>
+      </div>
+
+      <div className="mt-3">
+        <label className="mb-1.5 block text-xs font-semibold text-slate-300">
+          Rounding Adjustment
+        </label>
+        <input
+          value={roundingAdjustmentInput}
+          onChange={(e) => onRoundingAdjustmentChange(e.target.value)}
+          inputMode="decimal"
+          placeholder="0.00"
+          aria-label="Rounding adjustment"
+          className="glass-input w-full rounded-xl px-4 py-2.5 text-sm font-semibold outline-none transition"
+        />
+        <p className="mt-1.5 text-[11px] text-slate-400">
+          Enter a signed receipt adjustment, such as +0.01 or -0.02.
+        </p>
       </div>
 
       {isForeign && (

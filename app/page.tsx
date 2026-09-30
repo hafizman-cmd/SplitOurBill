@@ -51,6 +51,7 @@ export default function Home() {
 
   const [serviceChargeInput, setServiceChargeInput] = useState('0');
   const [taxInput, setTaxInput] = useState('0');
+  const [roundingAdjustmentInput, setRoundingAdjustmentInput] = useState('0');
 
   const [currency, setCurrency] = useState<CurrencyCode>('MYR');
   const [rateInput, setRateInput] = useState('');
@@ -154,11 +155,18 @@ export default function Home() {
         typeof data.taxPercent === 'number'
           ? data.taxPercent
           : Math.max(0, Number(taxInput) || 0);
+      const scannedRoundingAdjustment =
+        typeof data.roundingAdjustment === 'number'
+          ? data.roundingAdjustment
+          : Number(roundingAdjustmentInput) || 0;
       if (typeof data.serviceChargePercent === 'number') {
         setServiceChargeInput(String(data.serviceChargePercent));
       }
       if (typeof data.taxPercent === 'number') {
         setTaxInput(String(data.taxPercent));
+      }
+      if (typeof data.roundingAdjustment === 'number') {
+        setRoundingAdjustmentInput(String(data.roundingAdjustment));
       }
       setRestaurantName(data.restaurantName?.trim() || '');
       setBillDate(new Date().toISOString());
@@ -167,6 +175,7 @@ export default function Home() {
         [...items, ...newItems],
         scannedServiceCharge,
         scannedTax,
+        scannedRoundingAdjustment,
       );
       showToast(`Added ${newItems.length} item(s) from receipt`);
     } catch (err) {
@@ -185,6 +194,7 @@ export default function Home() {
     snapshotItems: Item[],
     serviceCharge: number,
     tax: number,
+    roundingAdjustment: number,
   ) => {
     const receiptData = {
       items: snapshotItems,
@@ -192,10 +202,17 @@ export default function Home() {
       paidStatus,
       serviceCharge,
       tax,
+      roundingAdjustment,
       currency,
       myrRate: currency === 'MYR' ? 1 : myrRate,
     };
-    const { grandTotal } = computeSplit(snapshotItems, people, serviceCharge, tax);
+    const { grandTotal } = computeSplit(
+      snapshotItems,
+      people,
+      serviceCharge,
+      tax,
+      roundingAdjustment,
+    );
     const nowIso = new Date().toISOString();
     const head = history[0];
     const isRecentSession =
@@ -238,6 +255,7 @@ export default function Home() {
     setBillDate(entry.date);
     setServiceChargeInput(String(snap.serviceCharge));
     setTaxInput(String(snap.tax));
+    setRoundingAdjustmentInput(String(snap.roundingAdjustment ?? 0));
     setCurrency(snap.currency ?? 'MYR');
     setRateInput(
       snap.currency && snap.currency !== 'MYR'
@@ -399,8 +417,9 @@ export default function Home() {
         people,
         Math.max(0, Number(serviceChargeInput) || 0),
         Math.max(0, Number(taxInput) || 0),
+        Number(roundingAdjustmentInput) || 0,
       ),
-    [items, people, serviceChargeInput, taxInput],
+    [items, people, serviceChargeInput, taxInput, roundingAdjustmentInput],
   );
 
   const openShareModal = () => {
@@ -432,6 +451,7 @@ export default function Home() {
       serviceAmt: calc.serviceAmt,
       tax: calc.tax,
       taxAmt: calc.taxAmt,
+      roundingAdjustment: calc.roundingAdjustment,
       grandTotal: calc.grandTotal,
       bankDetails: bankDetails.trim(),
       qrPayload,
@@ -473,7 +493,7 @@ export default function Home() {
           onOpenHistory={() => setHistoryOpen(true)}
         />
 
-        <main className="space-y-5 px-4 pb-6 pt-3">
+        <main className="space-y-5 px-4 pb-28 pt-3">
           <ReceiptScanner
             scanning={scanning}
             scanError={scanError}
@@ -500,8 +520,10 @@ export default function Home() {
           <ChargesSection
             serviceChargeInput={serviceChargeInput}
             taxInput={taxInput}
+            roundingAdjustmentInput={roundingAdjustmentInput}
             onServiceChargeChange={setServiceChargeInput}
             onTaxChange={setTaxInput}
+            onRoundingAdjustmentChange={setRoundingAdjustmentInput}
             currency={currency}
             onCurrencyChange={handleCurrencyChange}
             rateInput={rateInput}
@@ -523,15 +545,13 @@ export default function Home() {
           />
         </main>
 
-        <div className="fixed bottom-6 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2">
-          <button
-            onClick={openShareModal}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:brightness-110 active:scale-[0.98]"
-          >
-            <Share2 size={17} strokeWidth={2.4} />
-            Share Summary
-          </button>
-        </div>
+        <button
+          onClick={openShareModal}
+          className="fixed bottom-6 left-1/2 z-50 flex h-11 -translate-x-1/2 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-blue-400/30 bg-gradient-to-r from-blue-600 to-blue-500 px-7 text-sm font-semibold text-white shadow-xl shadow-blue-500/35 backdrop-blur-md transition-all active:scale-95"
+        >
+          <Share2 className="w-4 h-4" />
+          Share Summary
+        </button>
 
         <Footer />
 

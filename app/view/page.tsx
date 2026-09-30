@@ -16,7 +16,6 @@ import {
 import { decodeBillFromUrl, type SharedBill } from '../lib/urlState';
 import { formatMoney, formatMyrEquivalent } from '../lib/currency';
 import { findAccountNumber } from '../lib/split';
-import Footer from '../components/Footer';
 
 type Flash = { key: string; ok: boolean } | null;
 
@@ -180,7 +179,7 @@ function GuestBillView() {
           </div>
         </header>
 
-        <main className="space-y-5 px-4 pb-6 pt-2">
+        <main className="space-y-5 px-4 pb-24 pt-2">
           <section className="glass-card p-5">
             <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
               Bill Total
@@ -208,6 +207,15 @@ function GuestBillView() {
                 <div className="flex justify-between">
                   <span>Tax ({bill.tax}%)</span>
                   <span>{money(bill.taxAmt)}</span>
+                </div>
+              )}
+              {bill.roundingAdjustment !== 0 && (
+                <div className="flex justify-between">
+                  <span>Rounding Adjustment</span>
+                  <span>
+                    {bill.roundingAdjustment > 0 ? '+' : '-'}
+                    {money(Math.abs(bill.roundingAdjustment))}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between">
@@ -370,9 +378,14 @@ function GuestBillView() {
           <p className="pt-1 text-center text-[11px] text-slate-400">
             Read-only view shared via Kira-Kira
           </p>
+          <p className="mt-6 mb-4 px-6 text-center text-[11px] text-slate-500">
+            Kira-Kira is a bill calculation tool and does not process payments
+            directly. All fund transfers are completed in your bank&apos;s
+            official application.
+          </p>
         </main>
 
-        <footer className="mt-auto px-4 pb-6 pt-2 text-center">
+        <footer className="px-4 pb-6 pt-2 text-center">
           <Link
             href="/"
             className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400 transition hover:text-blue-400"
@@ -381,8 +394,6 @@ function GuestBillView() {
             Split your own bill with Kira-Kira
           </Link>
         </footer>
-
-        <Footer />
 
         {qrExpanded && bill.qrPayload && (
           <div

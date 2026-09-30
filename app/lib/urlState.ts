@@ -24,6 +24,7 @@ export type SharedBill = {
   serviceAmt: number;
   tax: number;
   taxAmt: number;
+  roundingAdjustment: number;
   grandTotal: number;
   bankDetails: string;
   qrPayload: string;
@@ -52,6 +53,10 @@ function isNumber(value: unknown): value is number {
 
 function nonNegative(value: unknown): number {
   return isNumber(value) ? Math.max(0, value) : 0;
+}
+
+function signed(value: unknown): number {
+  return isNumber(value) ? Math.round(value * 100) / 100 : 0;
 }
 
 function coerceSharedBill(data: unknown): SharedBill | null {
@@ -123,6 +128,7 @@ function coerceSharedBill(data: unknown): SharedBill | null {
     serviceAmt: nonNegative(d.serviceAmt),
     tax: nonNegative(d.tax),
     taxAmt: nonNegative(d.taxAmt),
+    roundingAdjustment: signed(d.roundingAdjustment),
     grandTotal: nonNegative(d.grandTotal),
     bankDetails: typeof d.bankDetails === 'string' ? d.bankDetails : '',
     qrPayload:

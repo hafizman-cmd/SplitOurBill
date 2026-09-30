@@ -33,6 +33,8 @@ export default function SummarySection({
 }: Props) {
   const money = (n: number) => formatMoney(n, currency);
   const eq = (n: number) => formatMyrEquivalent(n, currency, myrRate);
+  const signedMoney = (n: number) =>
+    `${n > 0 ? '+' : n < 0 ? '-' : ''}${money(Math.abs(n))}`;
 
   return (
     <section className="glass-card p-5">
@@ -94,6 +96,12 @@ export default function SummarySection({
             )}
           </span>
         </div>
+        {calc.roundingAdjustment !== 0 && (
+          <div className="flex justify-between text-slate-300">
+            <span>Rounding Adjustment</span>
+            <span>{signedMoney(calc.roundingAdjustment)}</span>
+          </div>
+        )}
         <div className="mt-1 flex justify-between border-t border-white/10 pt-2 font-bold text-white">
           <span>Grand Total</span>
           <span className="flex flex-col items-end leading-tight">
