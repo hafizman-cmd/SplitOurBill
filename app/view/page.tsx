@@ -50,7 +50,9 @@ function GuestBillView() {
   }, [searchParams]);
 
   useEffect(() => {
-    logEvent('app_open');
+    if (typeof window !== 'undefined') {
+      logEvent('app_open');
+    }
   }, []);
 
   useEffect(() => {
@@ -168,8 +170,8 @@ function GuestBillView() {
   }
 
   return (
-    <div className="min-h-screen bg-transparent text-slate-100 antialiased">
-      <div className="mx-auto flex min-h-screen max-w-md flex-col bg-transparent">
+    <div className="flex min-h-screen flex-col items-center justify-start gap-4 bg-transparent px-4 pb-28 pt-4 text-slate-100 antialiased">
+      <div className="mx-auto flex w-full max-w-md flex-col items-center justify-start gap-4 bg-transparent">
         <header className="glass-nav sticky top-3 z-50 mx-4 my-3 flex items-center gap-3 px-4 py-3 text-white">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-blue-500/30 bg-blue-600/20 text-blue-100">
             <ShieldCheck size={20} strokeWidth={2.3} />
@@ -184,7 +186,8 @@ function GuestBillView() {
           </div>
         </header>
 
-        <main className="space-y-5 px-4 pb-24 pt-2">
+        <main className="w-full px-4 pb-24 pt-2 sm:pb-28">
+          <div className="flex w-full flex-col gap-4 sm:gap-5">
           <section className="glass-card p-5">
             <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
               Bill Total
@@ -317,8 +320,9 @@ function GuestBillView() {
             </section>
           )}
 
-          {(bill.bankDetails.trim() !== '' || bill.qrPayload !== '') && (
-            <section className="glass-card p-5">
+          <div className="flex w-full flex-col gap-3">
+            {(bill.bankDetails.trim() !== '' || bill.qrPayload !== '') && (
+              <section className="glass-card p-5">
               <div className="mb-3 flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-500" />
                 <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-300">
@@ -377,17 +381,23 @@ function GuestBillView() {
                   />
                 )}
               </div>
-            </section>
-          )}
+              </section>
+            )}
+
+            <div className="flex items-start justify-center gap-1.5 px-4 text-center text-[11px] text-slate-400 opacity-75">
+              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+              <span>
+                Kira-Kira is a bill calculation tool and does not process payments
+                directly. All fund transfers are executed securely within your
+                bank&apos;s official application.
+              </span>
+            </div>
+          </div>
 
           <p className="pt-1 text-center text-[11px] text-slate-400">
             Read-only view shared via Kira-Kira
           </p>
-          <p className="mt-6 mb-4 px-6 text-center text-[11px] text-slate-500">
-            Kira-Kira is a bill calculation tool and does not process payments
-            directly. All fund transfers are completed in your bank&apos;s
-            official application.
-          </p>
+          </div>
         </main>
 
         <footer className="px-4 pb-6 pt-2 text-center">

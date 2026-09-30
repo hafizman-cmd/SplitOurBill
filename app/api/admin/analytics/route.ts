@@ -10,8 +10,11 @@ type Distribution = { label: string; count: number };
 const EMPTY_ANALYTICS = {
   visits: 0,
   scans: 0,
+  mobilePercent: 0,
+  mobileVisits: 0,
+  totalVisits: 0,
   iosPercent: 0,
-  proMaxPercent: 0,
+  androidPercent: 0,
   osDistribution: [] as Distribution[],
   brandDistribution: [] as Distribution[],
   recentEvents: [],
@@ -40,9 +43,22 @@ export async function GET(request: NextRequest) {
 
   try {
     await ensureAnalyticsEventsTable();
-    const [opensResult, scansResult, osResult, brandsResult, proMaxResult, recentResult] =
+    const [visitsResult, scansResult, osResult, mobileOsResult, brandsResult, recentResult] =
       await Promise.all([
-        turso.execute("SELECT COUNT(*) AS count FROM analytics_events WHERE event_name = 'app_open'"),
+        turso.execute(`
+          SELECT
+            COUNT(CASE WHEN event_name = 'app_open' THEN 1 END) AS app_open_count,
+            COUNT(DISTINCT NULLIF(session_id, '')) AS session_count,
+            COUNT(CASE WHEN event_name = 'app_open' AND (
+              lower(device_type) IN ('mobile', 'tablet')
+              OR lower(os_name) IN ('ios', 'android')
+            ) THEN 1 END) AS mobile_app_open_count,
+            COUNT(DISTINCT CASE WHEN
+              lower(device_type) IN ('mobile', 'tablet')
+              OR lower(os_name) IN ('ios', 'android')
+              THEN NULLIF(session_id, '') END) AS mobile_session_count
+          FROM analytics_events
+        `),
         turso.execute("SELECT COUNT(*) AS count FROM analytics_events WHERE event_name = 'scan_completed'"),
         turso.execute(`
           SELECT
@@ -57,6 +73,18 @@ export async function GET(request: NextRequest) {
           ORDER BY count DESC
         `),
         turso.execute(`
+          SELECT
+            CASE
+              WHEN lower(os_name) LIKE '%ios%' THEN 'iOS'
+              WHEN lower(os_name) LIKE '%android%' THEN 'Android'
+              ELSE 'Other'
+            END AS label,
+            COUNT(*) AS count
+          FROM analytics_events
+          WHERE lower(device_type) IN ('mobile', 'tablet')
+          GROUP BY label
+        `),
+        turso.execute(`
           SELECT COALESCE(NULLIF(device_brand, ''), NULLIF(device_vendor, ''), 'Unknown') AS label, COUNT(*) AS count
           FROM analytics_events
           GROUP BY device_vendor
@@ -64,14 +92,8 @@ export async function GET(request: NextRequest) {
           LIMIT 8
         `),
         turso.execute(`
-          SELECT COUNT(*) AS count
-          FROM analytics_events
-          WHERE
-            CAST(substr(COALESCE(screen_resolution, screen_metrics), 1, instr(COALESCE(screen_resolution, screen_metrics), 'x') - 1) AS INTEGER) >= 430
-            OR CAST(substr(COALESCE(screen_resolution, screen_metrics), instr(COALESCE(screen_resolution, screen_metrics), 'x') + 1, instr(COALESCE(screen_resolution, screen_metrics), ' @') - instr(COALESCE(screen_resolution, screen_metrics), 'x') - 1) AS INTEGER) >= 932
-        `),
-        turso.execute(`
-          SELECT id, event_name, COALESCE(screen_resolution, screen_metrics) AS screen_metrics, os_name, os_version, COALESCE(NULLIF(device_brand, ''), NULLIF(device_vendor, ''), 'Unknown') AS device_vendor,
+          SELECT id, event_name, os_name, os_version,
+            COALESCE(NULLIF(device_brand, ''), NULLIF(device_vendor, ''), 'Unknown') AS device_vendor,
             device_type, metadata, created_at
           FROM analytics_events
           ORDER BY created_at DESC
@@ -80,22 +102,31 @@ export async function GET(request: NextRequest) {
       ]);
 
     const osDistribution = distribution(osResult.rows as Record<string, unknown>[]);
-    const totalEvents = osDistribution.reduce((total, item) => total + item.count, 0);
-    const iosCount = osDistribution.find((item) => item.label === 'iOS')?.count ?? 0;
-    const proMaxViewports = count(proMaxResult.rows as Record<string, unknown>[]);
+    const mobileOsDistribution = distribution(mobileOsResult.rows as Record<string, unknown>[]);
+    const mobileEvents = mobileOsDistribution.reduce((total, item) => total + item.count, 0);
+    const iosCount = mobileOsDistribution.find((item) => item.label === 'iOS')?.count ?? 0;
+    const androidCount = mobileOsDistribution.find((item) => item.label === 'Android')?.count ?? 0;
+    const visitsRow = visitsResult.rows[0] as Record<string, unknown> | undefined;
+    const appOpenCount = Number(visitsRow?.app_open_count ?? 0) || 0;
+    const sessionCount = Number(visitsRow?.session_count ?? 0) || 0;
+    const mobileAppOpenCount = Number(visitsRow?.mobile_app_open_count ?? 0) || 0;
+    const mobileSessionCount = Number(visitsRow?.mobile_session_count ?? 0) || 0;
+    const totalVisits = appOpenCount > 0 ? appOpenCount : sessionCount;
+    const mobileVisits = appOpenCount > 0 ? mobileAppOpenCount : mobileSessionCount;
 
     return NextResponse.json({
-      visits: count(opensResult.rows as Record<string, unknown>[]),
+      visits: totalVisits,
       scans: count(scansResult.rows as Record<string, unknown>[]),
-      iosPercent: totalEvents > 0 ? Math.round((iosCount / totalEvents) * 100) : 0,
-      proMaxPercent:
-        totalEvents > 0 ? Math.round((proMaxViewports / totalEvents) * 100) : 0,
+      mobilePercent: totalVisits > 0 ? Math.round((mobileVisits / totalVisits) * 100) : 0,
+      mobileVisits,
+      totalVisits,
+      iosPercent: mobileEvents > 0 ? Math.round((iosCount / mobileEvents) * 100) : 0,
+      androidPercent: mobileEvents > 0 ? Math.round((androidCount / mobileEvents) * 100) : 0,
       osDistribution,
       brandDistribution: distribution(brandsResult.rows as Record<string, unknown>[]),
       recentEvents: (recentResult.rows as Record<string, unknown>[]).map((row) => ({
         id: value(row, 'id'),
         eventName: value(row, 'event_name'),
-        screenMetrics: value(row, 'screen_metrics'),
         osName: value(row, 'os_name'),
         osVersion: value(row, 'os_version'),
         deviceVendor: value(row, 'device_vendor'),

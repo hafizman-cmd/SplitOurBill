@@ -22,11 +22,10 @@ export function logEvent(
   const sessionId = getSessionId();
   if (!sessionId) return;
 
-  const screenMetrics = `${window.screen.width}x${window.screen.height} @ ${window.devicePixelRatio}x`;
   void fetch('/api/telemetry', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     keepalive: true,
-    body: JSON.stringify({ eventName, metadata, sessionId, screenMetrics }),
+    body: JSON.stringify({ eventName, metadata, sessionId }),
   }).catch(() => undefined);
 }

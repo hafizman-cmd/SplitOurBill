@@ -51,10 +51,6 @@ export async function POST(request: NextRequest) {
     null;
   const deviceType =
     nullableText(body.deviceType ?? body.device_type) ?? parsedDeviceType;
-  const screenResolution =
-    nullableText(
-      body.screenResolution ?? body.screen_resolution ?? body.screenMetrics,
-    ) ?? null;
   const metadata = JSON.stringify(isRecord(body.metadata) ? body.metadata : {});
 
   if (metadata.length > 4_000) {
@@ -67,9 +63,8 @@ export async function POST(request: NextRequest) {
       sql: `
         INSERT INTO analytics_events (
           id, session_id, event_name, os_name, os_version, device_brand,
-          device_vendor, device_type, screen_resolution, screen_metrics,
-          metadata, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          device_vendor, device_type, metadata, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       args: [
         id,
@@ -80,8 +75,6 @@ export async function POST(request: NextRequest) {
         deviceBrand,
         deviceBrand,
         deviceType,
-        screenResolution,
-        screenResolution,
         metadata,
         new Date().toISOString(),
       ],
