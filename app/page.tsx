@@ -31,6 +31,7 @@ import CameraModal from './components/CameraModal';
 import Footer from './components/Footer';
 import Toast from './components/Toast';
 import { logEvent } from '@/lib/telemetry';
+import DailyScanLimitModal from './components/DailyScanLimitModal';
 
 export default function Home() {
   const [bankDetails, setBankDetails] = useState('');
@@ -63,6 +64,9 @@ export default function Home() {
   const [scanError, setScanError] = useState<string | null>(null);
   const [cropImage, setCropImage] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [dailyLimitOpen, setDailyLimitOpen] = useState(false);
+  const [scansRemaining, setScansRemaining] = useState<number | null>(null);
+  const manualNameInputRef = useRef<HTMLInputElement>(null);
 
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -109,6 +113,12 @@ export default function Home() {
   };
 
   const scanReceipt = async (imageDataUrl: string) => {
+    if (scansRemaining === 0) {
+      setCropImage(null);
+      setDailyLimitOpen(true);
+      return;
+    }
+
     setCropImage(null);
     setScanning(true);
     setScanError(null);
@@ -116,7 +126,9 @@ export default function Home() {
     try {
       const res = await fetch('/api/scan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ imageBase64: imageDataUrl }),
       });
 
@@ -125,6 +137,14 @@ export default function Home() {
         .catch(() => null as ScanResponse | null);
 
       if (!res.ok) {
+        if (
+          res.status === 429 &&
+          (data as { error?: string } | null)?.error === 'DAILY_LIMIT_REACHED'
+        ) {
+          setScansRemaining(0);
+          setDailyLimitOpen(true);
+          return;
+        }
         throw new Error(
           (data as { error?: string } | null)?.error ??
             `Scan failed (${res.status}).`,
@@ -132,6 +152,9 @@ export default function Home() {
       }
       if (!data || !Array.isArray(data.items)) {
         throw new Error('Received an invalid response from the scanner.');
+      }
+      if (typeof data.remaining === 'number') {
+        setScansRemaining(Math.max(0, data.remaining));
       }
 
       const newItems = data.items
@@ -504,6 +527,7 @@ export default function Home() {
         <Header
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenHistory={() => setHistoryOpen(true)}
+          scansRemaining={scansRemaining}
         />
 
         <main className="space-y-5 px-4 pb-28 pt-3">
@@ -528,6 +552,7 @@ export default function Home() {
             onToggleAssignment={toggleAssignment}
             currency={currency}
             myrRate={myrRate}
+            manualNameInputRef={manualNameInputRef}
           />
 
           <ChargesSection
@@ -558,13 +583,15 @@ export default function Home() {
           />
         </main>
 
-        <button
-          onClick={openShareModal}
-          className="fixed bottom-6 left-1/2 z-50 flex h-11 -translate-x-1/2 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-blue-400/30 bg-gradient-to-r from-blue-600 to-blue-500 px-7 text-sm font-semibold text-white shadow-xl shadow-blue-500/35 backdrop-blur-md transition-all active:scale-95"
-        >
-          <Share2 className="w-4 h-4" />
-          Share Summary
-        </button>
+        {items.length > 0 && (
+          <button
+            onClick={openShareModal}
+            className="fixed bottom-6 left-1/2 z-50 flex h-11 -translate-x-1/2 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-blue-400/30 bg-gradient-to-r from-blue-600 to-blue-500 px-7 text-sm font-semibold text-white shadow-xl shadow-blue-500/35 backdrop-blur-md transition-all active:scale-95"
+          >
+            <Share2 className="w-4 h-4" />
+            Share Summary
+          </button>
+        )}
 
         <Footer />
 
@@ -616,6 +643,15 @@ export default function Home() {
           onCapture={handleCameraCapture}
           onNativeCapture={handleCameraNativeFile}
           onClose={() => setCameraOpen(false)}
+        />
+
+        <DailyScanLimitModal
+          open={dailyLimitOpen}
+          onClose={() => setDailyLimitOpen(false)}
+          onEnterManually={() => {
+            setDailyLimitOpen(false);
+            requestAnimationFrame(() => manualNameInputRef.current?.focus());
+          }}
         />
 
         {toast && <Toast message={toast} />}

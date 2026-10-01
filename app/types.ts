@@ -13,6 +13,7 @@ export type ScanResponse = {
   taxPercent: number;
   roundingAdjustment: number;
   restaurantName?: string;
+  remaining?: number;
 };
 
 export type ReceiptSnapshot = {

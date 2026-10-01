@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'node:crypto';
+import { checkScanLimit } from '@/lib/scan-limiter';
 
 export const runtime = 'nodejs';
 
@@ -174,9 +176,14 @@ function buildRequestBody(model: string, imageDataUrl: string) {
 export async function POST(req: NextRequest) {
   try {
     const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-      req.headers.get('x-real-ip') ??
-      'unknown';
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('x-real-ip') ||
+      'unknown_ip';
+    const userAgent = req.headers.get('user-agent') || 'unknown_ua';
+    const serverFingerprint = createHash('md5')
+      .update(`${ip}-${userAgent}`)
+      .digest('hex');
+    const ipHash = createHash('md5').update(ip).digest('hex');
 
     if (isRateLimited(ip)) {
       return NextResponse.json(
@@ -220,6 +227,18 @@ export async function POST(req: NextRequest) {
       );
     }
     const imageDataUrl = normalized.dataUrl;
+
+    const scanLimit = await checkScanLimit(serverFingerprint, ipHash);
+    if (!scanLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: 'DAILY_LIMIT_REACHED',
+          remaining: 0,
+          message: 'Daily limit of 2 free AI scans reached.',
+        },
+        { status: 429 },
+      );
+    }
 
     const endpoint = process.env.OPENCODE_ENDPOINT ?? DEFAULT_ENDPOINT;
     const model = process.env.OPENCODE_MODEL || DEFAULT_MODEL;
@@ -304,7 +323,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result, remaining: scanLimit.remaining });
   } catch (error) {
     console.error('[scan] unexpected error:', error instanceof Error ? error.message : error);
     return NextResponse.json(

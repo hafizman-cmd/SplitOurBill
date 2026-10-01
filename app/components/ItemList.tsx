@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type RefObject } from 'react';
 import { Check, ListChecks, Plus, Trash2, UserCircle } from 'lucide-react';
 import type { Item } from '../types';
 import { formatMoney, formatMyrEquivalent, type CurrencyCode } from '../lib/currency';
@@ -13,6 +13,7 @@ type Props = {
   onToggleAssignment: (itemId: string, person: string) => void;
   currency: CurrencyCode;
   myrRate: number;
+  manualNameInputRef?: RefObject<HTMLInputElement | null>;
 };
 
 export default function ItemList({
@@ -23,6 +24,7 @@ export default function ItemList({
   onToggleAssignment,
   currency,
   myrRate,
+  manualNameInputRef,
 }: Props) {
   const [manualName, setManualName] = useState('');
   const [manualPrice, setManualPrice] = useState('');
@@ -106,7 +108,7 @@ export default function ItemList({
       )}
 
       <div className="mt-6 grid grid-cols-[minmax(0,1fr)_5.75rem_auto] gap-2 border-t border-white/10 pt-4">
-        <input value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="Item name" className="glass-input min-w-0 text-sm" />
+        <input ref={manualNameInputRef} value={manualName} onChange={(event) => setManualName(event.target.value)} placeholder="Item name" className="glass-input min-w-0 text-sm" />
         <input value={manualPrice} onChange={(event) => setManualPrice(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') addManualItem(); }} inputMode="decimal" placeholder="0.00" className="glass-input w-full text-sm" />
         <button onClick={addManualItem} aria-label="Add item" className="flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-3 text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-95"><Plus size={18} /></button>
       </div>
