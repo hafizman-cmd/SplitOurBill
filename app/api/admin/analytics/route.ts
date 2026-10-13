@@ -33,6 +33,31 @@ function distribution(rows: Record<string, unknown>[]): Distribution[] {
   return rows.map((row) => ({ label: value(row, 'label'), count: Number(row.count) || 0 }));
 }
 
+function cleanDeviceLabel(label: string, osName = ''): string {
+  const fallback = /ios/i.test(osName)
+    ? 'Apple'
+    : /android/i.test(osName)
+      ? 'Mobile'
+      : /mac/i.test(osName)
+        ? 'Mac'
+        : 'PC';
+  if (/windows|linux/i.test(osName)) return 'PC';
+  if (/^k$|^android(?:\s+\d+(?:\.\d+)*)?$/i.test(label.trim())) {
+    return /android/i.test(osName) || !osName ? 'Mobile' : fallback;
+  }
+  if (/^build$|^mobile$|^apple$/i.test(label.trim())) {
+    return /^build$|^mobile$/i.test(label.trim()) && !osName ? 'Mobile' : fallback;
+  }
+  if (/^(unknown|null)$/i.test(label.trim()) || !label.trim()) return fallback;
+  return label.trim();
+}
+
+function mergeDistribution(items: Distribution[], cleanLabel: (label: string) => string): Distribution[] {
+  const merged = new Map<string, number>();
+  for (const item of items) merged.set(cleanLabel(item.label), (merged.get(cleanLabel(item.label)) ?? 0) + item.count);
+  return [...merged.entries()].map(([label, count]) => ({ label, count }));
+}
+
 export async function GET(request: NextRequest) {
   if (!isAdminRequest(request)) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
@@ -65,7 +90,10 @@ export async function GET(request: NextRequest) {
             CASE
               WHEN lower(os_name) LIKE '%ios%' THEN 'iOS'
               WHEN lower(os_name) LIKE '%android%' THEN 'Android'
-              ELSE 'Desktop'
+              WHEN lower(os_name) LIKE '%mac%' THEN 'macOS'
+              WHEN lower(os_name) LIKE '%windows%' THEN 'Windows'
+              WHEN lower(os_name) LIKE '%linux%' THEN 'Linux'
+              ELSE 'Other'
             END AS label,
             COUNT(*) AS count
           FROM analytics_events
@@ -77,6 +105,9 @@ export async function GET(request: NextRequest) {
             CASE
               WHEN lower(os_name) LIKE '%ios%' THEN 'iOS'
               WHEN lower(os_name) LIKE '%android%' THEN 'Android'
+              WHEN lower(os_name) LIKE '%mac%' THEN 'macOS'
+              WHEN lower(os_name) LIKE '%windows%' THEN 'Windows'
+              WHEN lower(os_name) LIKE '%linux%' THEN 'Linux'
               ELSE 'Other'
             END AS label,
             COUNT(*) AS count
@@ -123,13 +154,16 @@ export async function GET(request: NextRequest) {
       iosPercent: mobileEvents > 0 ? Math.round((iosCount / mobileEvents) * 100) : 0,
       androidPercent: mobileEvents > 0 ? Math.round((androidCount / mobileEvents) * 100) : 0,
       osDistribution,
-      brandDistribution: distribution(brandsResult.rows as Record<string, unknown>[]),
+      brandDistribution: mergeDistribution(
+        distribution(brandsResult.rows as Record<string, unknown>[]),
+        (label) => cleanDeviceLabel(label),
+      ),
       recentEvents: (recentResult.rows as Record<string, unknown>[]).map((row) => ({
         id: value(row, 'id'),
         eventName: value(row, 'event_name'),
         osName: value(row, 'os_name'),
         osVersion: value(row, 'os_version'),
-        deviceVendor: value(row, 'device_vendor'),
+        deviceVendor: cleanDeviceLabel(value(row, 'device_vendor'), value(row, 'os_name')),
         deviceType: value(row, 'device_type'),
         metadata: value(row, 'metadata'),
         createdAt: value(row, 'created_at'),

@@ -19,6 +19,46 @@ function nullableText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function parseOsName(userAgent: string, parsedName?: string): string | null {
+  const source = `${parsedName ?? ''} ${userAgent}`.toLowerCase();
+  if (/iphone|ipad|ipod|ios|macintosh.*mobile/.test(source)) return 'iOS';
+  if (source.includes('android')) return 'Android';
+  if (source.includes('windows')) return 'Windows';
+  if (source.includes('mac os') || source.includes('macintosh')) return 'macOS';
+  if (source.includes('linux')) return 'Linux';
+  return null;
+}
+
+function parseDeviceBrand(
+  userAgent: string,
+  osName: string | null,
+  vendor?: string,
+  model?: string,
+): string {
+  if (osName === 'iOS') return /ipad/i.test(userAgent) ? 'iPad' : 'Apple';
+  if (osName === 'macOS') return 'Mac';
+  if (osName === 'Windows' || osName === 'Linux') return 'PC';
+
+  const androidVendors = [
+    ['samsung', 'Samsung'],
+    ['pixel', 'Pixel'],
+    ['xiaomi', 'Xiaomi'],
+    ['huawei', 'Huawei'],
+    ['oppo', 'Oppo'],
+    ['vivo', 'Vivo'],
+    ['oneplus', 'OnePlus'],
+  ] as const;
+  const matchedVendor = androidVendors.find(([token]) => new RegExp(token, 'i').test(userAgent));
+  if (osName === 'Android') return matchedVendor?.[1] ?? (/sm-/i.test(userAgent) ? 'Samsung' : 'Mobile');
+
+  const genericTokens = /^(k|build|android(?:\s+\d+(?:\.\d+)*)?|mobile|apple)$/i;
+  const candidate = [vendor, model]
+    .map((value) => value?.trim() ?? '')
+    .find((value) => value && !genericTokens.test(value));
+
+  return candidate ?? 'PC';
+}
+
 export async function POST(request: NextRequest) {
   if (!hasTursoConfiguration) {
     return NextResponse.json(
@@ -32,7 +72,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid telemetry payload.' }, { status: 400 });
   }
 
-  const parsed = new UAParser(request.headers.get('user-agent') ?? '').getResult();
+  const userAgent = request.headers.get('user-agent') ?? '';
+  const parsed = new UAParser(userAgent).getResult();
   const parsedType = parsed.device.type;
   const parsedDeviceType =
     parsedType === 'mobile' || parsedType === 'tablet' ? parsedType : 'desktop';
@@ -41,14 +82,15 @@ export async function POST(request: NextRequest) {
   const sessionId =
     text(body.sessionId ?? body.session_id, 100) ?? 'anonymous';
   const eventName = text(body.eventName ?? body.event_name, 80) ?? 'app_open';
-  const osName = nullableText(body.osName ?? body.os_name) ?? parsed.os.name ?? null;
+  const osName = parseOsName(userAgent, nullableText(body.osName ?? body.os_name) ?? parsed.os.name);
   const osVersion =
     nullableText(body.osVersion ?? body.os_version) ?? parsed.os.version ?? null;
-  const deviceBrand =
-    nullableText(body.deviceBrand ?? body.device_brand) ??
-    parsed.device.vendor ??
-    parsed.device.model ??
-    null;
+  const deviceBrand = parseDeviceBrand(
+    userAgent,
+    osName,
+    nullableText(body.deviceBrand ?? body.device_brand) ?? parsed.device.vendor,
+    parsed.device.model,
+  );
   const deviceType =
     nullableText(body.deviceType ?? body.device_type) ?? parsedDeviceType;
   const metadata = JSON.stringify(isRecord(body.metadata) ? body.metadata : {});

@@ -54,8 +54,10 @@ const EMPTY_ANALYTICS: AnalyticsData = {
 function formatTime(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
-    ? '--:--:--'
-    : date.toLocaleTimeString('en-MY', {
+    ? '-- --:--:--'
+    : date.toLocaleString('en-US', {
+        month: 'short',
+        day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
@@ -74,6 +76,23 @@ function eventBadge(eventName: string): { label: string; className: string } {
     return { label: 'Summary Shared', className: 'border-cyan-400/30 bg-cyan-500/15 text-cyan-200' };
   }
   return { label: eventName.replace(/_/g, ' '), className: 'border-white/15 bg-white/5 text-slate-300' };
+}
+
+function formatOs(osName: string): string {
+  if (/android/i.test(osName)) return 'Android';
+  if (/ios/i.test(osName)) return 'iOS';
+  if (/mac/i.test(osName)) return 'macOS';
+  if (/windows/i.test(osName)) return 'Windows';
+  if (/linux/i.test(osName)) return 'Linux';
+  return 'PC';
+}
+
+function formatDevice(deviceVendor: string, deviceType: string, osName: string): string {
+  if (/ios/i.test(osName)) return deviceVendor || 'Apple';
+  if (/android/i.test(osName)) return deviceVendor && !/unknown|null/i.test(deviceVendor) ? deviceVendor : 'Mobile';
+  if (/mac/i.test(osName)) return 'Mac';
+  if (/windows|linux/i.test(osName)) return 'PC';
+  return deviceVendor || deviceType || 'PC';
 }
 
 export default function AdminPage() {
@@ -215,7 +234,11 @@ function Dashboard({ analytics, loading, onRefresh, onLogout }: { analytics: Ana
         </section>
 
         <section className="grid gap-4 md:grid-cols-2">
-          <DistributionCard title="OS Distribution" items={analytics.osDistribution} accent="bg-blue-500" />
+          <DistributionCard
+            title="OS Distribution"
+            items={analytics.osDistribution.filter((item) => ['iOS', 'Android', 'macOS', 'Windows'].includes(item.label))}
+            accent="bg-blue-500"
+          />
           <DistributionCard title="Device Brands" items={analytics.brandDistribution} accent="bg-cyan-400" />
         </section>
 
@@ -223,9 +246,9 @@ function Dashboard({ analytics, loading, onRefresh, onLogout }: { analytics: Ana
           <div className="flex items-center justify-between border-b border-white/10 px-4 py-3"><div><h2 className="text-sm font-bold text-white">Live Activity</h2><p className="mt-0.5 text-[11px] text-slate-500">50 most recent anonymous events</p></div><Activity className="w-4 h-4 text-blue-400" /></div>
           <div className="w-full overflow-hidden">
             <table className="w-full table-fixed text-left text-xs">
-              <thead className="bg-white/[0.03] text-slate-500"><tr><th className="w-24 px-4 py-3 font-semibold sm:w-32">Time</th><th className="w-32 px-4 py-3 font-semibold sm:w-40">Event</th><th className="px-4 py-3 font-semibold">Device Info</th></tr></thead>
+               <thead className="bg-white/[0.03] text-slate-500"><tr><th className="w-32 px-4 py-3 font-semibold sm:w-40">Date &amp; Time</th><th className="w-32 px-4 py-3 font-semibold sm:w-40">Event</th><th className="px-4 py-3 font-semibold">Device Info</th></tr></thead>
               <tbody className="divide-y divide-white/5 text-slate-300">
-                {analytics.recentEvents.map((event) => { const badge = eventBadge(event.eventName); return <tr key={event.id}><td className="whitespace-nowrap px-4 py-3.5 font-mono text-slate-400">{formatTime(event.createdAt)}</td><td className="px-4 py-3.5"><span className={`whitespace-nowrap rounded-full border px-2 py-1 text-[11px] font-semibold ${badge.className}`}>{badge.label}</span></td><td className="truncate px-4 py-3.5 text-slate-300">{event.osName}{event.osVersion ? ` ${event.osVersion}` : ''} <span className="text-slate-600">•</span> {event.deviceVendor || event.deviceType}</td></tr>; })}
+                 {analytics.recentEvents.map((event) => { const badge = eventBadge(event.eventName); return <tr key={event.id}><td className="whitespace-nowrap px-4 py-3.5 font-mono text-slate-400">{formatTime(event.createdAt)}</td><td className="px-4 py-3.5"><span className={`whitespace-nowrap rounded-full border px-2 py-1 text-[11px] font-semibold ${badge.className}`}>{badge.label}</span></td><td className="truncate px-4 py-3.5 text-slate-300">{formatOs(event.osName)} <span className="text-slate-600">•</span> {formatDevice(event.deviceVendor, event.deviceType, event.osName)}</td></tr>; })}
                 {analytics.recentEvents.length === 0 && <tr><td colSpan={3} className="px-4 py-10 text-center text-sm text-slate-500">No telemetry events yet.</td></tr>}
               </tbody>
             </table>
