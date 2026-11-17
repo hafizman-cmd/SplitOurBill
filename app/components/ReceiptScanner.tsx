@@ -104,8 +104,8 @@ export default function ReceiptScanner({
         </h2>
         <button type="button" role="switch" aria-checked={developerMode} aria-label="Developer mode" onClick={() => void toggleDeveloperMode()} disabled={switchingOff || scanning} className="flex items-center gap-1.5 rounded-lg p-1.5 text-xs text-slate-400 hover:bg-white/10 disabled:opacity-60">
           <Code2 size={16} />
-          <span className={`relative h-5 w-9 rounded-full transition-colors ${developerMode ? 'bg-blue-600' : 'bg-slate-600'}`}>
-            <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${developerMode ? 'translate-x-4' : 'translate-x-0.5'}`} />
+          <span className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${developerMode ? 'bg-blue-600' : 'bg-slate-600'}`}>
+            <span className={`absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${developerMode ? 'translate-x-4' : 'translate-x-0'}`} />
           </span>
         </button>
       </div>

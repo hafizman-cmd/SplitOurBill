@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import { AlertCircle, Clock, PlusCircle, Sparkles } from 'lucide-react';
+import { AlertCircle, Clock, PlusCircle } from 'lucide-react';
+import { KiraKiraLogo } from './ui/logo';
 
 type Props = {
   open: boolean;
@@ -38,9 +39,7 @@ export default function DailyScanLimitModal({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-300/25 bg-[#007AFF]/20 text-blue-200 shadow-lg shadow-blue-500/15">
-            <Sparkles size={23} />
-          </div>
+          <KiraKiraLogo className="h-12 w-12" />
           <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-300">
             <Clock size={14} className="text-blue-300" />
             Resets at midnight
