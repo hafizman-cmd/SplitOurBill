@@ -172,10 +172,30 @@ export default function CropModal({
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, dw, dh);
       ctx.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh);
-      onCrop(canvas.toDataURL('image/jpeg', 0.92));
+      onClose();
+      let finished = false;
+      const finish = (dataUrl: string) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(fallback);
+        onCrop(dataUrl);
+      };
+      const fallback = setTimeout(() => finish(imageSrc), 5000);
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          finish(imageSrc);
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          finish(typeof reader.result === 'string' ? reader.result : imageSrc);
+        };
+        reader.onerror = () => finish(imageSrc);
+        reader.readAsDataURL(blob);
+      }, 'image/jpeg', 0.92);
     } catch {
       setProcessing(false);
-      onSkip();
+      onCrop(imageSrc);
     }
   };
 
