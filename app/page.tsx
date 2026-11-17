@@ -145,6 +145,10 @@ export default function Home() {
         ) {
           setScansRemaining(0);
           setDeveloperMode(false);
+          if (developerMode) {
+            setScanError('Developer session expired. Enter the admin password again to scan.');
+            return;
+          }
           setDailyLimitOpen(true);
           return;
         }

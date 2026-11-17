@@ -201,7 +201,8 @@ export async function POST(req: NextRequest) {
       .digest('hex');
     const ipHash = createHash('md5').update(ip).digest('hex');
 
-    if (isRateLimited(ip)) {
+    const developer = isAdminRequest(req);
+    if (!developer && isRateLimited(ip)) {
       return NextResponse.json(
         { error: 'Too many scans. Please wait a minute and try again.' },
         { status: 429 },
@@ -243,7 +244,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const developer = isAdminRequest(req);
     const scanLimit = developer ? { allowed: true, remaining: null } : await checkScanLimit(serverFingerprint, ipHash);
     if (!scanLimit.allowed) {
       return NextResponse.json(
