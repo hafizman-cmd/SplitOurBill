@@ -16,7 +16,7 @@ Scan a receipt, assign items to friends, and split the bill fairly with service 
 - React 19, TypeScript (strict)
 - Tailwind CSS 3
 - lucide-react icons
-- AI vision API via the OpenCode gateway (`OPENCODE_ENDPOINT`, `OPENCODE_MODEL`)
+- AI receipt scanning via the Gemini API (`GEMINI_API_KEY`)
 
 ## Getting Started
 
@@ -27,10 +27,7 @@ npm install
 Create a `.env` file in the project root:
 
 ```
-OPENCODE_API_KEY=your-key-here
-# Optional overrides:
-# OPENCODE_ENDPOINT=https://opencode.ai/zen/go/v1/chat/completions
-# OPENCODE_MODEL=deepseek-v4-flash-vision-exp
+GEMINI_API_KEY=your-key-here
 ```
 
 Run the development server:

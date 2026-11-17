@@ -55,7 +55,10 @@ export default function CropModal({
   }, [open, onClose]);
 
   useEffect(() => {
-    if (open) setRect(DEFAULT_RECT);
+    if (open) {
+      setRect(DEFAULT_RECT);
+      setProcessing(false);
+    }
   }, [open, imageSrc]);
 
   useEffect(() => {

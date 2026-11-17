@@ -274,6 +274,14 @@ export async function POST(req: NextRequest) {
           responseMimeType: 'application/json',
           responseJsonSchema: receiptSchema,
           abortSignal: controller.signal,
+          httpOptions: {
+            retryOptions: {
+              attempts: 3,
+              initialDelay: 1,
+              maxDelay: 2,
+              httpStatusCodes: [503],
+            },
+          },
         },
       });
       rawText = extractJsonText(response.text);
@@ -288,7 +296,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: controller.signal.aborted
           ? 'The AI service took too long to respond. Please try again.'
-          : 'The AI service failed to process the receipt. Please try again.' },
+          : error instanceof ApiError && error.status === 503
+            ? 'The AI service is temporarily unavailable. Please try again shortly.'
+            : 'The AI service failed to process the receipt. Please try again.' },
         { status: 502 },
       );
     } finally {
