@@ -99,7 +99,7 @@ export default function ReceiptScanner({
     <>
     <section className="glass-card p-5">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight text-white">
           <Camera className="h-4 w-4 text-blue-400" /> Receipt Scanner
         </h2>
         <button type="button" role="switch" aria-checked={developerMode} aria-label="Developer mode" onClick={() => void toggleDeveloperMode()} disabled={switchingOff || scanning} className="flex items-center gap-1.5 rounded-lg p-1.5 text-xs text-slate-400 hover:bg-white/10 disabled:opacity-60">
@@ -109,6 +109,7 @@ export default function ReceiptScanner({
           </span>
         </button>
       </div>
+      <p className="mb-4 text-sm leading-relaxed text-slate-300">Capture your receipt and we?ll find the items for you.</p>
 
       <input
         ref={fileInputRef}
@@ -122,6 +123,7 @@ export default function ReceiptScanner({
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
+          aria-label="Take a receipt photo"
           onClick={onOpenCamera}
           disabled={scanning}
           className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-3.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
@@ -133,7 +135,7 @@ export default function ReceiptScanner({
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={scanning}
-          className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-blue-500/30 bg-white/5 py-3.5 text-sm font-medium text-slate-300 transition hover:bg-white/10 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 py-3.5 text-sm font-medium text-white transition hover:bg-white/10 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Upload size={18} />
           Upload File

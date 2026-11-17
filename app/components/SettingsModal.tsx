@@ -89,16 +89,17 @@ export default function SettingsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-4 backdrop-blur-sm sm:items-center"
+      className="sheet-overlay"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Payment settings"
     >
       <div
-        className="glass-card w-full max-w-md p-6 dark:text-slate-100"
+        className="glass-card sheet-panel w-full max-w-md p-6 text-slate-100"
         onClick={(e) => e.stopPropagation()}
       >
+        <div aria-hidden="true" className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/30 sm:hidden" />
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-bold text-white">
             Payment Details
@@ -106,7 +107,7 @@ export default function SettingsModal({
           <button
             onClick={onClose}
             aria-label="Close settings"
-            className="rounded-full p-2 text-slate-300 transition hover:bg-white/10 hover:text-white"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white"
           >
             <X size={18} />
           </button>
@@ -119,7 +120,7 @@ export default function SettingsModal({
           onChange={(e) => setSettingsDraft(e.target.value)}
           rows={4}
           placeholder={'e.g.\nDuitNow: Maybank\n162112345678\nAlice Tan'}
-          className="glass-input w-full resize-none rounded-xl px-4 py-3 text-sm outline-none transition"
+          className="glass-input w-full resize-none rounded-xl px-4 py-3 text-base outline-none transition"
         />
 
         <div className="mt-5">

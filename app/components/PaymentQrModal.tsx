@@ -29,31 +29,32 @@ export default function PaymentQrModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm"
+      className="sheet-overlay"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Payment QR code"
     >
       <div
-        className="glass-card w-full max-w-sm p-6 dark:text-slate-100"
+        className="glass-card sheet-panel w-full max-w-sm p-6 text-slate-100"
         onClick={(e) => e.stopPropagation()}
       >
+        <div aria-hidden="true" className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/30 sm:hidden" />
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-bold text-white">Scan to Pay</h3>
           <button
             onClick={onClose}
             aria-label="Close QR code view"
-            className="rounded-full p-2 text-slate-300 transition hover:bg-white/10 hover:text-white"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white"
           >
             <X size={18} />
           </button>
         </div>
-        <div className="flex justify-center">
+        <div className="mx-auto flex w-fit max-w-full justify-center rounded-2xl bg-white p-3">
           <img
             src={qrCode}
             alt="DuitNow / bank payment QR code"
-            className="w-full max-w-[280px] rounded-2xl ring-1 ring-white/25"
+            className="w-full max-w-[280px] rounded-lg"
           />
         </div>
         {bankDetails && (

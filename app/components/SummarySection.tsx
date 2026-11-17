@@ -9,6 +9,7 @@ import {
 } from '../lib/currency';
 
 type Props = {
+  unassignedCount: number;
   people: string[];
   calc: SplitResult;
   paidStatus: Record<string, boolean>;
@@ -21,6 +22,7 @@ type Props = {
 };
 
 export default function SummarySection({
+  unassignedCount,
   people,
   calc,
   paidStatus,
@@ -38,12 +40,12 @@ export default function SummarySection({
 
   return (
     <section className="glass-card p-5">
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.12em] text-slate-300">
+      <h2 className="mb-3 flex items-center gap-2 text-base font-semibold tracking-tight text-white">
         <Layers className="h-4 w-4 text-blue-400" />
         <span>Summary</span>
       </h2>
 
-      {people.length > 0 && (
+      {people.length > 0 && unassignedCount === 0 && (
         <div className="mb-3 flex items-center justify-between rounded-xl border border-white/10 bg-slate-950/30 px-3 py-2 text-xs text-slate-300 backdrop-blur-md">
           <span>
             Collected: {money(people.reduce((total, person) =>
@@ -61,6 +63,12 @@ export default function SummarySection({
           </button>
         </div>
       )}
+
+      <div className="mb-3 rounded-2xl border border-blue-300/20 bg-blue-500/10 p-4">
+        <p className="text-sm font-medium text-blue-100">Grand total</p>
+        <p className="mt-1 text-3xl font-bold tracking-tight text-white tabular-nums">{money(calc.grandTotal)}</p>
+        {eq(calc.grandTotal) && <p className="mt-1 text-xs text-blue-100/80">{eq(calc.grandTotal)}</p>}
+      </div>
 
       <div className="space-y-1.5 rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-sm">
         <div className="flex justify-between text-slate-300">
@@ -102,21 +110,11 @@ export default function SummarySection({
             <span>{signedMoney(calc.roundingAdjustment)}</span>
           </div>
         )}
-        <div className="mt-1 flex justify-between border-t border-white/10 pt-2 font-bold text-white">
-          <span>Grand Total</span>
-          <span className="flex flex-col items-end leading-tight">
-            <span>{money(calc.grandTotal)}</span>
-            {eq(calc.grandTotal) && (
-              <span className="text-[10px] font-normal text-slate-400">
-                {eq(calc.grandTotal)}
-              </span>
-            )}
-          </span>
-        </div>
+
       </div>
 
       <div className="mt-4 space-y-3">
-        {people.length > 0 ? (
+        {unassignedCount > 0 ? <p role="status" className="rounded-2xl border border-amber-300/25 bg-amber-400/10 p-4 text-sm text-amber-100">Split incomplete: {unassignedCount} item(s) still need an owner. Assign every item to see final amounts and share the bill.</p> : people.length > 0 ? (
           people.map((p) => {
             const entry = calc.perPerson[p];
             const paid = paidStatus[p] ?? false;
@@ -161,9 +159,9 @@ export default function SummarySection({
                     type="button"
                     onClick={() => onTogglePaid(p)}
                     aria-label={paid ? `Mark ${p} as unpaid` : `Mark ${p} as paid`}
-                    className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[11px] font-semibold transition active:scale-95 ${
+                    className={`flex items-center gap-1.5 min-h-11 rounded-xl border px-3 py-1 text-xs font-semibold transition active:scale-95 ${
                       paid
-                        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 backdrop-blur-md hover:bg-emerald-500/20'
+                        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200 backdrop-blur-md hover:bg-emerald-500/20'
                         : 'border-white/15 bg-white/5 text-slate-200 shadow-sm hover:border-white/25 hover:bg-white/10 active:bg-white/15'
                     }`}
                   >

@@ -83,22 +83,23 @@ export default function ShareModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-4 backdrop-blur-sm sm:items-center"
+      className="sheet-overlay"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Share bill"
     >
       <div
-        className="glass-card w-full max-w-md p-6 dark:text-slate-100"
+        className="glass-card sheet-panel w-full max-w-md p-6 text-slate-100"
         onClick={(e) => e.stopPropagation()}
       >
+        <div aria-hidden="true" className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/30 sm:hidden" />
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-bold text-white">Share Bill</h3>
           <button
             onClick={onClose}
             aria-label="Close share"
-            className="rounded-full p-2 text-slate-300 transition hover:bg-white/10 hover:text-white"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white"
           >
             <X size={18} />
           </button>
@@ -108,7 +109,7 @@ export default function ShareModal({
           DuitNow - no account needed.
         </p>
 
-        <div className="mb-4 rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-md">
+        <div className="mb-4 max-h-28 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-md">
           <div className="flex items-start gap-2">
             <Link className="mt-0.5 w-4 h-4 shrink-0 text-blue-500" />
             <p className="min-w-0 break-all font-mono text-[11px] leading-relaxed text-slate-300">

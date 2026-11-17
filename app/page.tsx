@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Share2 } from 'lucide-react';
+import { ArrowRight, Share2 } from 'lucide-react';
 import type { HistoryEntry, Item, ScanResponse, SplitResult } from './types';
 import {
   HISTORY_STORAGE_KEY,
@@ -17,6 +17,8 @@ import { buildShareText, computeSplit } from './lib/split';
 import { encodeBillToUrl, type SharedBill } from './lib/urlState';
 import { CURRENCIES, type CurrencyCode } from './lib/currency';
 import Header from './components/Header';
+import BillFlowGuide from './components/BillFlowGuide';
+import ScanReviewModal, { type ReviewedScan } from './components/ScanReviewModal';
 import ReceiptScanner from './components/ReceiptScanner';
 import PeopleManager from './components/PeopleManager';
 import ItemList from './components/ItemList';
@@ -61,6 +63,12 @@ export default function Home() {
   const [fetchingRate, setFetchingRate] = useState(false);
   const myrRate = currency === 'MYR' ? 1 : Math.max(0, Number(rateInput) || 0);
 
+  const [pendingScan, setPendingScan] = useState<{ scan: ReviewedScan; image: string } | null>(null);
+  const [showUnassignedOnly, setShowUnassignedOnly] = useState(false);
+  const itemsSectionRef = useRef<HTMLDivElement>(null);
+  const scannerSectionRef = useRef<HTMLDivElement>(null);
+  const peopleSectionRef = useRef<HTMLDivElement>(null);
+  const reviewSectionRef = useRef<HTMLDivElement>(null);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [cropImage, setCropImage] = useState<string | null>(null);
@@ -183,7 +191,6 @@ export default function Home() {
         throw new Error('No readable items were found on the receipt.');
       }
 
-      setItems((prev) => [...prev, ...newItems]);
       const scannedServiceCharge =
         typeof data.serviceChargePercent === 'number'
           ? data.serviceChargePercent
@@ -196,25 +203,16 @@ export default function Home() {
         typeof data.roundingAdjustment === 'number'
           ? data.roundingAdjustment
           : Number(roundingAdjustmentInput) || 0;
-      if (typeof data.serviceChargePercent === 'number') {
-        setServiceChargeInput(String(data.serviceChargePercent));
-      }
-      if (typeof data.taxPercent === 'number') {
-        setTaxInput(String(data.taxPercent));
-      }
-      if (typeof data.roundingAdjustment === 'number') {
-        setRoundingAdjustmentInput(String(data.roundingAdjustment));
-      }
-      setRestaurantName(data.restaurantName?.trim() || '');
-      setBillDate(new Date().toISOString());
-      saveHistory(
-        data.restaurantName?.trim() || 'Receipt',
-        [...items, ...newItems],
-        scannedServiceCharge,
-        scannedTax,
-        scannedRoundingAdjustment,
-      );
-      showToast(`Added ${newItems.length} item(s) from receipt`);
+      setPendingScan({
+        image: imageDataUrl,
+        scan: {
+          items: newItems,
+          restaurantName: data.restaurantName?.trim() || '',
+          serviceCharge: scannedServiceCharge,
+          tax: scannedTax,
+          roundingAdjustment: scannedRoundingAdjustment,
+        },
+      });
     } catch (err) {
       if (!serverResponded) logEvent('scan_client_error', { code: 'connection_failed' });
       else if (serverSucceeded) logEvent('scan_client_error', { code: 'client_processing_error' });
@@ -226,6 +224,21 @@ export default function Home() {
     } finally {
       setScanning(false);
     }
+  };
+
+  const confirmScan = (scan: ReviewedScan) => {
+    const nextItems = [...items, ...scan.items];
+    setItems(nextItems);
+    setServiceChargeInput(String(scan.serviceCharge));
+    setTaxInput(String(scan.tax));
+    setRoundingAdjustmentInput(String(scan.roundingAdjustment));
+    setRestaurantName(scan.restaurantName);
+    setBillDate(new Date().toISOString());
+    saveHistory(scan.restaurantName || 'Receipt', nextItems, scan.serviceCharge, scan.tax, scan.roundingAdjustment);
+    setPendingScan(null);
+    setShowUnassignedOnly(false);
+    showToast(`Added ${scan.items.length} reviewed item(s). Assign who shared each one.`);
+    requestAnimationFrame(() => selectStep(people.length === 0 ? 1 : 2));
   };
 
   const saveHistory = (
@@ -397,6 +410,27 @@ export default function Home() {
     setItems((prev) => prev.filter((it) => it.id !== id));
   };
 
+  const updateItem = (id: string, name: string, price: number) => {
+    setItems((current) => current.map((item) => item.id === id ? { ...item, name, price } : item));
+  };
+
+  const assignEveryone = (id: string) => {
+    setItems((current) => current.map((item) => item.id === id ? { ...item, assigned: [...people] } : item));
+  };
+
+  const unassignedCount = items.filter((item) => item.assigned.length === 0).length;
+
+  const currentStep = items.length === 0 ? 0 : people.length === 0 ? 1 : unassignedCount > 0 ? 2 : 3;
+
+  const selectStep = (step: number) => {
+    if (step === 2) setShowUnassignedOnly(unassignedCount > 0);
+    const section = [scannerSectionRef, peopleSectionRef, itemsSectionRef, reviewSectionRef][step]?.current;
+    if (!section) return;
+    section.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
+    const target = step === 1 ? section.querySelector('input') : step === 0 ? section.querySelector<HTMLButtonElement>('button[aria-label="Take a receipt photo"]') : section;
+    target?.focus({ preventScroll: true });
+  };
+
   const toggleAssignment = (itemId: string, person: string) => {
     setItems((prev) =>
       prev.map((it) =>
@@ -467,6 +501,15 @@ export default function Home() {
       showToast('Add items and people first.');
       return;
     }
+    if (unassignedCount > 0) {
+      setShowUnassignedOnly(true);
+      showToast(`Assign the remaining ${unassignedCount} item(s) before sharing.`);
+      requestAnimationFrame(() => {
+        itemsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        itemsSectionRef.current?.focus({ preventScroll: true });
+      });
+      return;
+    }
     const sharedBill: SharedBill = {
       restaurantName: restaurantName.trim() || 'Kira-Kira Bill',
       date: billDate || new Date().toISOString(),
@@ -535,71 +578,96 @@ export default function Home() {
         />
 
         <main className="space-y-5 px-4 pb-28 pt-3">
-          <ReceiptScanner
-            scanning={scanning}
-            scanError={scanError}
-            developerMode={developerMode}
-            onDeveloperModeChange={setDeveloperMode}
-            onSelect={handleFileSelected}
-            onOpenCamera={() => setCameraOpen(true)}
-          />
+          <BillFlowGuide currentStep={currentStep} hasItems={items.length > 0} hasPeople={people.length > 0} unassignedCount={unassignedCount} onSelectStep={selectStep} />
 
-          <PeopleManager
-            people={people}
-            onAdd={addPerson}
-            onRemove={removePerson}
-          />
+          <div ref={scannerSectionRef} tabIndex={-1} aria-label="Scan or add items" className="scroll-mt-28 rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+            <ReceiptScanner
+              scanning={scanning}
+              scanError={scanError}
+              developerMode={developerMode}
+              onDeveloperModeChange={setDeveloperMode}
+              onSelect={handleFileSelected}
+              onOpenCamera={() => setCameraOpen(true)}
+            />
 
-          <ItemList
-            items={items}
-            people={people}
-            onAddManualItem={addManualItem}
-            onRemoveItem={removeItem}
-            onToggleAssignment={toggleAssignment}
-            currency={currency}
-            myrRate={myrRate}
-            manualNameInputRef={manualNameInputRef}
-          />
+            <button type="button" onClick={() => { setShowUnassignedOnly(false); requestAnimationFrame(() => manualNameInputRef.current?.focus()); }} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/15 text-sm font-semibold text-slate-200 hover:bg-white/5">Enter items manually <ArrowRight size={16} /></button>
+          </div>
 
-          <ChargesSection
-            serviceChargeInput={serviceChargeInput}
-            taxInput={taxInput}
-            roundingAdjustmentInput={roundingAdjustmentInput}
-            onServiceChargeChange={setServiceChargeInput}
-            onTaxChange={setTaxInput}
-            onRoundingAdjustmentChange={setRoundingAdjustmentInput}
-            currency={currency}
-            onCurrencyChange={handleCurrencyChange}
-            rateInput={rateInput}
-            onRateChange={setRateInput}
-            onFetchRate={() => void fetchExchangeRate()}
-            fetchingRate={fetchingRate}
-          />
+          <div ref={peopleSectionRef} tabIndex={-1} aria-label="Add people" className="scroll-mt-28 rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+            <PeopleManager
+              people={people}
+              onAdd={addPerson}
+              onRemove={removePerson}
+            />
+          </div>
 
-          <SummarySection
-            people={people}
-            calc={calc}
-            paidStatus={paidStatus}
-            onTogglePaid={togglePaidStatus}
-            onResetPaid={resetPaidStatus}
-            paymentQrCode={paymentQrCode}
-            onShowQr={() => setQrModalOpen(true)}
-            currency={currency}
-            myrRate={myrRate}
-          />
+          <div ref={itemsSectionRef} tabIndex={-1} aria-label="Bill items and assignments" className="scroll-mt-24 rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+            <ItemList
+              items={items}
+              people={people}
+              onAddManualItem={addManualItem}
+              onRemoveItem={removeItem}
+              onUpdateItem={updateItem}
+              onAssignEveryone={assignEveryone}
+              showUnassignedOnly={showUnassignedOnly}
+              onFilterChange={setShowUnassignedOnly}
+              onToggleAssignment={toggleAssignment}
+              currency={currency}
+              myrRate={myrRate}
+              manualNameInputRef={manualNameInputRef}
+            />
+          </div>
+
+          <div ref={reviewSectionRef} tabIndex={-1} aria-label="Review charges and split" className="scroll-mt-28 space-y-5 rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+            <ChargesSection
+              serviceChargeInput={serviceChargeInput}
+              taxInput={taxInput}
+              roundingAdjustmentInput={roundingAdjustmentInput}
+              onServiceChargeChange={setServiceChargeInput}
+              onTaxChange={setTaxInput}
+              onRoundingAdjustmentChange={setRoundingAdjustmentInput}
+              currency={currency}
+              onCurrencyChange={handleCurrencyChange}
+              rateInput={rateInput}
+              onRateChange={setRateInput}
+              onFetchRate={() => void fetchExchangeRate()}
+              fetchingRate={fetchingRate}
+            />
+
+            <SummarySection
+              unassignedCount={unassignedCount}
+              people={people}
+              calc={calc}
+              paidStatus={paidStatus}
+              onTogglePaid={togglePaidStatus}
+              onResetPaid={resetPaidStatus}
+              paymentQrCode={paymentQrCode}
+              onShowQr={() => setQrModalOpen(true)}
+              currency={currency}
+              myrRate={myrRate}
+            />
+          </div>
         </main>
 
-        {items.length > 0 && (
-          <button
-            onClick={openShareModal}
-            className="fixed bottom-6 left-1/2 z-50 flex h-11 -translate-x-1/2 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-blue-400/30 bg-gradient-to-r from-blue-600 to-blue-500 px-7 text-sm font-semibold text-white shadow-xl shadow-blue-500/35 backdrop-blur-md transition-all active:scale-95"
-          >
-            <Share2 className="w-4 h-4" />
-            Share Summary
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => currentStep === 3 ? openShareModal() : selectStep(currentStep)}
+          className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 z-50 flex h-11 -translate-x-1/2 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-blue-400/30 bg-gradient-to-r from-blue-600 to-blue-500 px-7 text-sm font-semibold text-white shadow-xl shadow-blue-500/35 backdrop-blur-md transition-all active:scale-95"
+        >
+          {currentStep === 3 ? <Share2 size={16} /> : <ArrowRight size={16} />}
+          {['Scan or add items', 'Add people', `Assign ${unassignedCount} item${unassignedCount === 1 ? '' : 's'}`, 'Share Summary'][currentStep]}
+        </button>
 
         <Footer />
+
+        {pendingScan && <ScanReviewModal
+          scan={pendingScan.scan}
+          image={pendingScan.image}
+          currency={currency}
+          existingItems={items}
+          onConfirm={confirmScan}
+          onClose={() => setPendingScan(null)}
+        />}
 
         <SettingsModal
           open={settingsOpen}

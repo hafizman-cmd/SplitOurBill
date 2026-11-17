@@ -55,29 +55,30 @@ export default function HistoryModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-4 backdrop-blur-sm sm:items-center"
+      className="sheet-overlay"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Receipt history"
     >
       <div
-        className="glass-card flex max-h-[80vh] w-full max-w-md flex-col p-6 dark:text-slate-100"
+        className="glass-card sheet-panel flex w-full max-w-md flex-col p-6 text-slate-100"
         onClick={(e) => e.stopPropagation()}
       >
+        <div aria-hidden="true" className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/30 sm:hidden" />
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-bold text-white">Receipt History</h3>
           <button
             onClick={onClose}
             aria-label="Close history"
-            className="rounded-full p-2 text-slate-300 transition hover:bg-white/10 hover:text-white"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white"
           >
             <X size={18} />
           </button>
         </div>
 
         {sorted.length > 0 ? (
-          <ul className="-mr-2 flex-1 space-y-2 overflow-y-auto pr-2">
+          <ul className="-mr-2 min-h-0 flex-1 space-y-2 overflow-y-auto pr-2">
             {sorted.map((entry) => {
               const code = entryCurrency(entry.receiptData.currency);
               const rate = entry.receiptData.myrRate ?? 1;
