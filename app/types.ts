@@ -14,6 +14,7 @@ export type ScanResponse = {
   roundingAdjustment: number;
   restaurantName?: string;
   remaining?: number;
+  developer?: boolean;
 };
 
 export type ReceiptSnapshot = {

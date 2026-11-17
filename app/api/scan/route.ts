@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ApiError, GoogleGenAI } from '@google/genai';
 import { createHash } from 'node:crypto';
 import { checkScanLimit } from '@/lib/scan-limiter';
+import { isAdminRequest } from '@/lib/adminAuth';
 
 export const runtime = 'nodejs';
 
@@ -242,7 +243,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const scanLimit = await checkScanLimit(serverFingerprint, ipHash);
+    const developer = isAdminRequest(req);
+    const scanLimit = developer ? { allowed: true, remaining: null } : await checkScanLimit(serverFingerprint, ipHash);
     if (!scanLimit.allowed) {
       return NextResponse.json(
         {
@@ -317,7 +319,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ ...result, remaining: scanLimit.remaining });
+    return NextResponse.json({ ...result, remaining: scanLimit.remaining, developer });
   } catch {
     console.error('[scan] unexpected server error.');
     return NextResponse.json(

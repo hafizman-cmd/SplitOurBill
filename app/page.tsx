@@ -66,6 +66,7 @@ export default function Home() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [dailyLimitOpen, setDailyLimitOpen] = useState(false);
   const [scansRemaining, setScansRemaining] = useState<number | null>(null);
+  const [developerMode, setDeveloperMode] = useState(false);
   const manualNameInputRef = useRef<HTMLInputElement>(null);
 
   const [toast, setToast] = useState<string | null>(null);
@@ -113,7 +114,7 @@ export default function Home() {
   };
 
   const scanReceipt = async (imageDataUrl: string) => {
-    if (scansRemaining === 0) {
+    if (scansRemaining === 0 && !developerMode) {
       setCropImage(null);
       setDailyLimitOpen(true);
       return;
@@ -142,6 +143,7 @@ export default function Home() {
           (data as { error?: string } | null)?.error === 'DAILY_LIMIT_REACHED'
         ) {
           setScansRemaining(0);
+          setDeveloperMode(false);
           setDailyLimitOpen(true);
           return;
         }
@@ -156,6 +158,7 @@ export default function Home() {
       if (typeof data.remaining === 'number') {
         setScansRemaining(Math.max(0, data.remaining));
       }
+      setDeveloperMode(data.developer === true);
 
       const newItems = data.items
         .filter((it) => it && typeof it.name === 'string' && it.name.trim())
@@ -527,13 +530,15 @@ export default function Home() {
         <Header
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenHistory={() => setHistoryOpen(true)}
-          scansRemaining={scansRemaining}
+          scansRemaining={developerMode ? null : scansRemaining}
         />
 
         <main className="space-y-5 px-4 pb-28 pt-3">
           <ReceiptScanner
             scanning={scanning}
             scanError={scanError}
+            developerMode={developerMode}
+            onDeveloperModeChange={setDeveloperMode}
             onSelect={handleFileSelected}
             onOpenCamera={() => setCameraOpen(true)}
           />
