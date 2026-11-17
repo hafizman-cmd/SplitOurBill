@@ -44,4 +44,5 @@ export async function ensureAnalyticsEventsTable(): Promise<void> {
       await turso.execute(`ALTER TABLE analytics_events ADD COLUMN ${name} ${type}`);
     }
   }
+  await turso.execute('CREATE INDEX IF NOT EXISTS analytics_events_time_id ON analytics_events(created_at DESC, id DESC)');
 }

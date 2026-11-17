@@ -1,6 +1,6 @@
 const SESSION_STORAGE_KEY = 'kira_telemetry_session_id';
 
-function getSessionId(): string | null {
+export function getSessionId(): string | null {
   if (typeof window === 'undefined') return null;
   try {
     const existing = window.localStorage.getItem(SESSION_STORAGE_KEY);

@@ -3,6 +3,7 @@ import { ApiError, GoogleGenAI } from '@google/genai';
 import { createHash } from 'node:crypto';
 import { checkScanLimit } from '@/lib/scan-limiter';
 import { isAdminRequest } from '@/lib/adminAuth';
+import { recordScanEvent } from '@/lib/audit';
 
 export const runtime = 'nodejs';
 
@@ -190,6 +191,10 @@ const receiptSchema = {
 };
 
 export async function POST(req: NextRequest) {
+  const respond = async (body: object, status: number, code: string) => {
+    await recordScanEvent(req, status, code);
+    return NextResponse.json(body, { status });
+  };
   try {
     const ip =
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
@@ -203,18 +208,18 @@ export async function POST(req: NextRequest) {
 
     const developer = isAdminRequest(req);
     if (!developer && isRateLimited(ip)) {
-      return NextResponse.json(
+      return respond(
         { error: 'Too many scans. Please wait a minute and try again.' },
-        { status: 429 },
+        429, 'rate_limited',
       );
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       console.error('[scan] server misconfigured: GEMINI_API_KEY is not set.');
-      return NextResponse.json(
+      return respond(
         { error: 'AI service configuration missing' },
-        { status: 500 },
+        500, 'configuration_missing',
       );
     }
 
@@ -223,36 +228,36 @@ export async function POST(req: NextRequest) {
       typeof body?.imageBase64 === 'string' ? body.imageBase64.trim() : '';
 
     if (!imageBase64) {
-      return NextResponse.json(
+      return respond(
         { error: 'Request body must include an "imageBase64" string.' },
-        { status: 400 },
+        400, 'invalid_payload',
       );
     }
 
     if (imageBase64.length > 8_000_000) {
-      return NextResponse.json(
+      return respond(
         { error: 'The receipt image is too large. Please use a smaller photo.' },
-        { status: 413 },
+        413, 'image_too_large',
       );
     }
 
     const normalized = normalizeImageDataUrl(imageBase64);
     if ('error' in normalized) {
-      return NextResponse.json(
+      return respond(
         { error: 'The receipt image data is malformed. Please re-upload the photo.' },
-        { status: 400 },
+        400, 'invalid_image',
       );
     }
 
     const scanLimit = developer ? { allowed: true, remaining: null } : await checkScanLimit(serverFingerprint, ipHash);
     if (!scanLimit.allowed) {
-      return NextResponse.json(
+      return respond(
         {
           error: 'DAILY_LIMIT_REACHED',
           remaining: 0,
           message: 'Daily limit of 2 free AI scans reached.',
         },
-        { status: 429 },
+        429, 'daily_limit',
       );
     }
 
@@ -293,13 +298,13 @@ export async function POST(req: NextRequest) {
       } else {
         console.error('[scan] Gemini request failed before an API status was available.');
       }
-      return NextResponse.json(
+      return respond(
         { error: controller.signal.aborted
           ? 'The AI service took too long to respond. Please try again.'
           : error instanceof ApiError && error.status === 503
             ? 'The AI service is temporarily unavailable. Please try again shortly.'
             : 'The AI service failed to process the receipt. Please try again.' },
-        { status: 502 },
+        502, controller.signal.aborted ? 'upstream_timeout' : 'upstream_error',
       );
     } finally {
       clearTimeout(timeout);
@@ -313,28 +318,28 @@ export async function POST(req: NextRequest) {
     const result = coerceScanResult(parsed);
 
     if (!result) {
-      return NextResponse.json(
+      return respond(
         {
           error:
             'Could not read any items from the receipt. Try a clearer, well-lit photo.',
         },
-        { status: 422 },
+        422, 'unreadable_receipt',
       );
     }
 
     if (result.items.length === 0) {
-      return NextResponse.json(
+      return respond(
         { error: 'No line items were detected in the receipt image.' },
-        { status: 422 },
+        422, 'no_items',
       );
     }
 
-    return NextResponse.json({ ...result, remaining: scanLimit.remaining, developer });
+    return respond({ ...result, remaining: scanLimit.remaining, developer }, 200, 'scan_success');
   } catch {
     console.error('[scan] unexpected server error.');
-    return NextResponse.json(
+    return respond(
       { error: 'Unexpected server error while scanning the receipt.' },
-      { status: 500 },
+      500, 'internal_error',
     );
   }
 }

@@ -12,6 +12,8 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { KiraKiraLogo } from '../components/ui/logo';
+import AuditLog from './AuditLog';
+import { formatAuditTime } from '../lib/auditEvents';
 
 type Distribution = { label: string; count: number };
 
@@ -52,17 +54,7 @@ const EMPTY_ANALYTICS: AnalyticsData = {
 };
 
 function formatTime(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? '-- --:--:--'
-    : date.toLocaleString('en-US', {
-        month: 'short',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      });
+  return formatAuditTime(value);
 }
 
 function eventBadge(eventName: string): { label: string; className: string } {
@@ -70,7 +62,10 @@ function eventBadge(eventName: string): { label: string; className: string } {
     return { label: 'App Visit', className: 'border-blue-400/30 bg-blue-600/20 text-blue-200' };
   }
   if (eventName === 'scan_completed') {
-    return { label: 'Receipt Scan', className: 'border-emerald-400/30 bg-emerald-400/15 text-emerald-200' };
+    return { label: 'Scan Success', className: 'border-emerald-400/30 bg-emerald-400/15 text-emerald-200' };
+  }
+  if (eventName === 'scan_failed' || eventName === 'scan_client_error') {
+    return { label: 'Scan Failed', className: 'border-rose-400/30 bg-rose-500/15 text-rose-200' };
   }
   if (eventName === 'share_summary' || eventName === 'share_summary_tapped') {
     return { label: 'Summary Shared', className: 'border-cyan-400/30 bg-cyan-500/15 text-cyan-200' };
@@ -101,6 +96,7 @@ export default function AdminPage() {
   const [authError, setAuthError] = useState('');
   const [analytics, setAnalytics] = useState<AnalyticsData>(EMPTY_ANALYTICS);
   const [loading, setLoading] = useState(false);
+  const expireSession = useCallback(() => setAuthenticated(false), []);
 
   const refreshAnalytics = useCallback(async () => {
     setLoading(true);
@@ -196,10 +192,12 @@ export default function AdminPage() {
     );
   }
 
-  return <Dashboard analytics={analytics} loading={loading} onRefresh={() => void refreshAnalytics()} onLogout={() => void logout()} />;
+  return <Dashboard analytics={analytics} loading={loading} onRefresh={() => void refreshAnalytics()} onLogout={() => void logout()} onUnauthorized={expireSession} />;
 }
 
-function Dashboard({ analytics, loading, onRefresh, onLogout }: { analytics: AnalyticsData; loading: boolean; onRefresh: () => void; onLogout: () => void }) {
+function Dashboard({ analytics, loading, onRefresh, onLogout, onUnauthorized }: { analytics: AnalyticsData; loading: boolean; onRefresh: () => void; onLogout: () => void; onUnauthorized: () => void }) {
+  const [activityCount, setActivityCount] = useState(10);
+  const [auditRefresh, setAuditRefresh] = useState(0);
   return (
     <main className="min-h-screen px-4 pb-4 pt-4 text-slate-100 sm:px-6 sm:pb-6 sm:pt-6">
       <div className="mx-auto max-w-5xl">
@@ -207,7 +205,7 @@ function Dashboard({ analytics, loading, onRefresh, onLogout }: { analytics: Ana
           <Link href="/" className="flex h-9 shrink-0 items-center rounded-xl border border-white/10 bg-white/5 px-2.5 text-slate-300 transition-colors hover:bg-white/10 sm:px-3"><ArrowLeft className="w-4 h-4" /><span className="ml-1.5 hidden text-xs font-medium sm:inline">Back to App</span></Link>
           <div className="flex min-w-0 flex-1 items-center justify-center gap-2 sm:justify-start"><KiraKiraLogo className="h-7 w-7" /><h1 className="truncate text-xs font-bold tracking-tight text-white sm:text-sm">Kira-Kira Analytics</h1><span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" aria-label="Live" /></div>
           <div className="flex items-center gap-1.5">
-            <button type="button" onClick={onRefresh} aria-label="Refresh analytics" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white"><RotateCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></button>
+            <button type="button" onClick={() => { onRefresh(); setAuditRefresh(value => value + 1); }} aria-label="Refresh analytics" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white"><RotateCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></button>
             <button type="button" onClick={onLogout} aria-label="Log out" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white"><LogOut className="w-4 h-4" /></button>
           </div>
         </header>
@@ -242,17 +240,20 @@ function Dashboard({ analytics, loading, onRefresh, onLogout }: { analytics: Ana
           <DistributionCard title="Device Brands" items={analytics.brandDistribution} accent="bg-cyan-400" />
         </section>
 
+        <AuditLog onUnauthorized={onUnauthorized} refreshKey={auditRefresh} />
+
         <section className="mt-4 overflow-hidden rounded-2xl border-x border-white/10 border-b border-white/5 border-t border-white/20 bg-slate-900/50 shadow-xl shadow-black/40 backdrop-blur-xl">
-          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3"><div><h2 className="text-sm font-bold text-white">Live Activity</h2><p className="mt-0.5 text-[11px] text-slate-500">50 most recent anonymous events</p></div><Activity className="w-4 h-4 text-blue-400" /></div>
-          <div className="w-full overflow-hidden">
-            <table className="w-full table-fixed text-left text-xs">
-               <thead className="bg-white/[0.03] text-slate-500"><tr><th className="w-32 px-4 py-3 font-semibold sm:w-40">Date &amp; Time</th><th className="w-32 px-4 py-3 font-semibold sm:w-40">Event</th><th className="px-4 py-3 font-semibold">Device Info</th></tr></thead>
+          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3"><div><h2 className="text-sm font-bold text-white">Live Activity</h2><p className="mt-0.5 text-[11px] text-slate-400">Latest {Math.min(activityCount, analytics.recentEvents.length)} of {analytics.recentEvents.length} recent events · Updates every 30s · MYT</p></div><Activity className="w-4 h-4 text-blue-400" /></div>
+          <div className="w-full overflow-x-auto">
+            <table className="w-full min-w-[600px] table-fixed text-left text-xs">
+               <thead className="bg-white/[0.03] text-slate-500"><tr><th className="w-60 px-4 py-3 font-semibold">Date &amp; Time (MYT)</th><th className="w-40 px-4 py-3 font-semibold">Event</th><th className="px-4 py-3 font-semibold">Device Info</th></tr></thead>
               <tbody className="divide-y divide-white/5 text-slate-300">
-                 {analytics.recentEvents.map((event) => { const badge = eventBadge(event.eventName); return <tr key={event.id}><td className="whitespace-nowrap px-4 py-3.5 font-mono text-slate-400">{formatTime(event.createdAt)}</td><td className="px-4 py-3.5"><span className={`whitespace-nowrap rounded-full border px-2 py-1 text-[11px] font-semibold ${badge.className}`}>{badge.label}</span></td><td className="truncate px-4 py-3.5 text-slate-300">{formatOs(event.osName)} <span className="text-slate-600">•</span> {formatDevice(event.deviceVendor, event.deviceType, event.osName)}</td></tr>; })}
+                 {analytics.recentEvents.slice(0, activityCount).map((event) => { const badge = eventBadge(event.eventName); return <tr key={event.id}><td className="whitespace-nowrap px-4 py-3.5 font-mono text-slate-400">{formatTime(event.createdAt)}</td><td className="px-4 py-3.5"><span className={`whitespace-nowrap rounded-full border px-2 py-1 text-[11px] font-semibold ${badge.className}`}>{badge.label}</span></td><td className="truncate px-4 py-3.5 text-slate-300">{formatOs(event.osName)} <span className="text-slate-600">•</span> {formatDevice(event.deviceVendor, event.deviceType, event.osName)}</td></tr>; })}
                 {analytics.recentEvents.length === 0 && <tr><td colSpan={3} className="px-4 py-10 text-center text-sm text-slate-500">No telemetry events yet.</td></tr>}
               </tbody>
             </table>
           </div>
+          {analytics.recentEvents.length > 10 && <div className="flex items-center justify-between border-t border-white/10 px-4 py-3"><p className="text-[11px] text-slate-400">Older records are available in the Audit Log.</p><div className="flex gap-2">{activityCount > 10 && <button type="button" onClick={() => setActivityCount(10)} className="rounded-xl px-3 py-2 text-xs text-slate-300 hover:bg-white/5">Show less</button>}{activityCount < analytics.recentEvents.length && <button type="button" onClick={() => setActivityCount(count => count + 10)} className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10">Show more</button>}</div></div>}
         </section>
       </div>
     </main>

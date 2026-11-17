@@ -30,7 +30,7 @@ import CropModal from './components/CropModal';
 import CameraModal from './components/CameraModal';
 import Footer from './components/Footer';
 import Toast from './components/Toast';
-import { logEvent } from '@/lib/telemetry';
+import { getSessionId, logEvent } from '@/lib/telemetry';
 import DailyScanLimitModal from './components/DailyScanLimitModal';
 import InstallChoiceModal from './components/InstallChoiceModal';
 
@@ -125,14 +125,19 @@ export default function Home() {
     setScanning(true);
     setScanError(null);
 
+    let serverResponded = false;
+    let serverSucceeded = false;
     try {
       const res = await fetch('/api/scan', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-telemetry-session': getSessionId() ?? '',
         },
         body: JSON.stringify({ imageBase64: imageDataUrl }),
       });
+      serverResponded = true;
+      serverSucceeded = res.ok;
 
       const data: ScanResponse | null = await res
         .json()
@@ -202,17 +207,6 @@ export default function Home() {
       }
       setRestaurantName(data.restaurantName?.trim() || '');
       setBillDate(new Date().toISOString());
-      const scannedTotal = computeSplit(
-        [...items, ...newItems],
-        people,
-        scannedServiceCharge,
-        scannedTax,
-        scannedRoundingAdjustment,
-      ).grandTotal;
-      logEvent('scan_completed', {
-        items_count: newItems.length,
-        total_rm: scannedTotal,
-      });
       saveHistory(
         data.restaurantName?.trim() || 'Receipt',
         [...items, ...newItems],
@@ -222,6 +216,8 @@ export default function Home() {
       );
       showToast(`Added ${newItems.length} item(s) from receipt`);
     } catch (err) {
+      if (!serverResponded) logEvent('scan_client_error', { code: 'connection_failed' });
+      else if (serverSucceeded) logEvent('scan_client_error', { code: 'client_processing_error' });
       setScanError(
         err instanceof Error
           ? err.message
