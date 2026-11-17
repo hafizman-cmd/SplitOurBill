@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { ApiError, GoogleGenAI } from '@google/genai';
 import { createHash } from 'node:crypto';
 import { checkScanLimit } from '@/lib/scan-limiter';
 
@@ -275,7 +275,14 @@ export async function POST(req: NextRequest) {
         },
       });
       rawText = extractJsonText(response.text);
-    } catch {
+    } catch (error) {
+      if (controller.signal.aborted) {
+        console.error('[scan] Gemini request timed out.');
+      } else if (error instanceof ApiError) {
+        console.error(`[scan] Gemini API returned HTTP ${error.status}.`);
+      } else {
+        console.error('[scan] Gemini request failed before an API status was available.');
+      }
       return NextResponse.json(
         { error: controller.signal.aborted
           ? 'The AI service took too long to respond. Please try again.'
