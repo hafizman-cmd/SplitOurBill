@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: 'Kira-Kira — Split bills fairly',
   description:
     'Scan a receipt, assign items to friends, and split the bill fairly with service charge and tax included.',
-  manifest: '/manifest.webmanifest',
+  manifest: '/manifest.webmanifest?v=2',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
