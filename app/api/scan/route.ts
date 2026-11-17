@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { GoogleGenAI } from '@google/genai';
 import { createHash } from 'node:crypto';
 import { checkScanLimit } from '@/lib/scan-limiter';
 
 export const runtime = 'nodejs';
 
-const DEFAULT_ENDPOINT = 'https://opencode.ai/zen/go/v1/chat/completions';
-const DEFAULT_MODEL = 'deepseek-v4-flash-vision-exp';
 const UPSTREAM_TIMEOUT_MS = 30_000;
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -105,6 +104,21 @@ function parseJsonLoose(text: string): unknown {
 function coerceScanResult(data: unknown): ScanPayload | null {
   if (typeof data !== 'object' || data === null) return null;
   const obj = data as Record<string, unknown>;
+  if (
+    typeof obj.restaurantName !== 'string' ||
+    !Array.isArray(obj.items) ||
+    !obj.items.every((item: unknown) => {
+      if (typeof item !== 'object' || item === null) return false;
+      const entry = item as Record<string, unknown>;
+      return typeof entry.name === 'string' && entry.name.trim().length > 0 &&
+        typeof entry.price === 'number' && Number.isFinite(entry.price) && entry.price >= 0;
+    }) ||
+    !['serviceChargePercent', 'taxPercent', 'roundingAdjustment'].every(
+      (key) => typeof obj[key] === 'number' && Number.isFinite(obj[key]),
+    ) ||
+    (obj.serviceChargePercent as number) < 0 || (obj.serviceChargePercent as number) > 100 ||
+    (obj.taxPercent as number) < 0 || (obj.taxPercent as number) > 100
+  ) return null;
 
   const rawItems = Array.isArray(obj.items) ? obj.items : [];
   const items = rawItems
@@ -135,15 +149,15 @@ function coerceScanResult(data: unknown): ScanPayload | null {
   };
 }
 
-function normalizeImageDataUrl(imageBase64: string): { dataUrl: string } | { error: string } {
+function normalizeImageDataUrl(imageBase64: string): { mimeType: string; data: string } | { error: string } {
   const trimmed = imageBase64.trim();
   if (!trimmed) return { error: 'Image payload is empty.' };
 
   if (trimmed.startsWith('data:')) {
-    const match = trimmed.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=\s]+)$/);
+    const match = trimmed.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/\s]+={0,2})$/i);
     if (match) {
       const [, mime, data] = match;
-      return { dataUrl: `data:${mime};base64,${data.replace(/\s+/g, '')}` };
+      return { mimeType: mime.toLowerCase(), data: data.replace(/\s+/g, '') };
     }
     return { error: 'Image payload has a "data:" prefix but is not a valid base64 data URL.' };
   }
@@ -152,26 +166,27 @@ function normalizeImageDataUrl(imageBase64: string): { dataUrl: string } | { err
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(cleaned)) {
     return { error: 'Image payload does not look like valid raw base64.' };
   }
-  return { dataUrl: `data:image/jpeg;base64,${cleaned}` };
+  return { mimeType: 'image/jpeg', data: cleaned };
 }
 
-function buildRequestBody(model: string, imageDataUrl: string) {
-  return {
-    model,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: 'Extract the restaurant name, line items, prices, service charge %, tax %, and any receipt rounding adjustment from this receipt. Inspect lines labelled rounding, round off, pelarasan, or 5 sen. Return ONLY valid JSON: {"restaurantName":"string","items":[{"name":"string","price":number}],"serviceChargePercent":number,"taxPercent":number,"roundingAdjustment":number}. roundingAdjustment must be a signed amount such as 0.01 or -0.02, or 0 when absent.',
-          },
-          { type: 'image_url', image_url: { url: imageDataUrl } },
-        ],
+const receiptSchema = {
+  type: 'object',
+  properties: {
+    restaurantName: { type: 'string' },
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { name: { type: 'string' }, price: { type: 'number' } },
+        required: ['name', 'price'],
       },
-    ],
-  };
-}
+    },
+    serviceChargePercent: { type: 'number' },
+    taxPercent: { type: 'number' },
+    roundingAdjustment: { type: 'number' },
+  },
+  required: ['restaurantName', 'items', 'serviceChargePercent', 'taxPercent', 'roundingAdjustment'],
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -192,11 +207,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const apiKey = process.env.OPENCODE_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.error('[scan] server misconfigured: OPENCODE_API_KEY is not set.');
+      console.error('[scan] server misconfigured: GEMINI_API_KEY is not set.');
       return NextResponse.json(
-        { error: 'Server configuration error: OPENCODE_API_KEY is not set.' },
+        { error: 'AI service configuration missing' },
         { status: 500 },
       );
     }
@@ -226,7 +241,6 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    const imageDataUrl = normalized.dataUrl;
 
     const scanLimit = await checkScanLimit(serverFingerprint, ipHash);
     if (!scanLimit.allowed) {
@@ -240,63 +254,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const endpoint = process.env.OPENCODE_ENDPOINT ?? DEFAULT_ENDPOINT;
-    const model = process.env.OPENCODE_MODEL || DEFAULT_MODEL;
-
+    const ai = new GoogleGenAI({ apiKey });
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
-
-    let response: Response;
+    let rawText: string | null;
     try {
-      response = await fetch(endpoint, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-          'x-opencode-session': crypto.randomUUID(),
-          'User-Agent': 'kira-kira-splitthebill/1.0',
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [{
+          role: 'user',
+          parts: [
+            { text: 'Extract the restaurant name, line items, service charge percentage, tax or SST percentage, and receipt rounding adjustment. For each item use the total line price, accounting for quantity; do not include subtotal, tax, service charge, rounding, or grand total as items. Inspect rounding, round off, pelarasan, or 5 sen lines. Use a signed rounding amount, and use 0 for absent charges or rounding. Use an empty restaurant name if unknown.' },
+            { inlineData: { mimeType: normalized.mimeType, data: normalized.data } },
+          ],
+        }],
+        config: {
+          responseMimeType: 'application/json',
+          responseJsonSchema: receiptSchema,
+          abortSignal: controller.signal,
         },
-        body: JSON.stringify(buildRequestBody(model, imageDataUrl)),
       });
-    } catch (fetchError) {
-      const timedOut = fetchError instanceof Error && fetchError.name === 'AbortError';
+      rawText = extractJsonText(response.text);
+    } catch {
       return NextResponse.json(
-        {
-          error: timedOut
-            ? 'The AI service took too long to respond. Please try again.'
-            : 'Could not reach the AI service. Please try again.',
-        },
+        { error: controller.signal.aborted
+          ? 'The AI service took too long to respond. Please try again.'
+          : 'The AI service failed to process the receipt. Please try again.' },
         { status: 502 },
       );
     } finally {
       clearTimeout(timeout);
-    }
-
-    if (!response.ok) {
-      console.error(`[scan] upstream error: HTTP ${response.status}.`);
-      return NextResponse.json(
-        { error: 'The AI service failed to process the receipt. Please try again.' },
-        { status: 502 },
-      );
-    }
-
-    const completion = await response.json().catch(() => null);
-    if (!completion) {
-      console.error('[scan] upstream response was not valid JSON.');
-      return NextResponse.json(
-        { error: 'The AI service returned an unreadable response.' },
-        { status: 502 },
-      );
-    }
-
-    const content =
-      completion?.choices?.[0]?.message?.content ??
-      completion?.choices?.[0]?.text;
-
-    const rawText = extractJsonText(content);
-    if (!rawText) {
-      console.error('[scan] no text content found in model completion.');
     }
 
     const parsed = rawText ? parseJsonLoose(rawText) : null;
@@ -324,8 +311,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ ...result, remaining: scanLimit.remaining });
-  } catch (error) {
-    console.error('[scan] unexpected error:', error instanceof Error ? error.message : error);
+  } catch {
+    console.error('[scan] unexpected server error.');
     return NextResponse.json(
       { error: 'Unexpected server error while scanning the receipt.' },
       { status: 500 },
