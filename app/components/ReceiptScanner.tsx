@@ -25,6 +25,8 @@ export default function ReceiptScanner({
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [switchingOff, setSwitchingOff] = useState(false);
+  const [toggleError, setToggleError] = useState('');
 
   useEffect(() => {
     fetch('/api/admin/auth', { cache: 'no-store' })
@@ -57,12 +59,33 @@ export default function ReceiptScanner({
         return;
       }
       onDeveloperModeChange(true);
+      setToggleError('');
       setPassword('');
       setUnlockOpen(false);
     } catch {
       setError('Unable to connect. Please try again.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const toggleDeveloperMode = async () => {
+    if (!developerMode) {
+      setPassword('');
+      setError('');
+      setUnlockOpen(true);
+      return;
+    }
+    setSwitchingOff(true);
+    setToggleError('');
+    try {
+      const response = await fetch('/api/admin/auth', { method: 'DELETE' });
+      if (!response.ok) throw new Error('Logout failed');
+      onDeveloperModeChange(false);
+    } catch {
+      setToggleError('Could not turn off developer mode. Please try again.');
+    } finally {
+      setSwitchingOff(false);
     }
   };
 
@@ -79,8 +102,11 @@ export default function ReceiptScanner({
         <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
           <Camera className="h-4 w-4 text-blue-400" /> Receipt Scanner
         </h2>
-        <button type="button" onClick={() => { setPassword(''); setError(''); setUnlockOpen(true); }} aria-label="Developer scan access" className="flex items-center gap-1 rounded-lg p-2 text-xs text-slate-400 hover:bg-white/10 hover:text-blue-300">
-          <Code2 size={16} />{developerMode && 'Developer'}
+        <button type="button" role="switch" aria-checked={developerMode} aria-label="Developer mode" onClick={() => void toggleDeveloperMode()} disabled={switchingOff || scanning} className="flex items-center gap-1.5 rounded-lg p-1.5 text-xs text-slate-400 hover:bg-white/10 disabled:opacity-60">
+          <Code2 size={16} />
+          <span className={`relative h-5 w-9 rounded-full transition-colors ${developerMode ? 'bg-blue-600' : 'bg-slate-600'}`}>
+            <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${developerMode ? 'translate-x-4' : 'translate-x-0.5'}`} />
+          </span>
         </button>
       </div>
 
@@ -126,12 +152,13 @@ export default function ReceiptScanner({
           {scanError}
         </p>
       )}
+      {toggleError && <p role="alert" className="mt-3 text-xs text-rose-300">{toggleError}</p>}
     </section>
       {unlockOpen && (
         <div role="dialog" aria-modal="true" aria-labelledby="developer-unlock-title" onClick={() => setUnlockOpen(false)} className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/65 px-5 py-6 backdrop-blur-md">
           <div onClick={(event) => event.stopPropagation()} className="my-auto w-full max-w-sm rounded-3xl border border-white/15 bg-[#111217] p-6 shadow-2xl">
             <h2 id="developer-unlock-title" className="text-xl font-semibold text-white">Developer access</h2>
-            <p className="mt-2 text-sm text-slate-300">Enter the admin password to bypass the daily scan limit for this session.</p>
+            <p className="mt-2 text-sm text-rose-300">Enter the admin password again to turn developer mode on and bypass the daily scan limit.</p>
             <form onSubmit={unlock} className="mt-4 space-y-4">
               <label className="block text-sm text-slate-300">Admin password
                 <input type="password" required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-white" />
