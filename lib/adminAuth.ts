@@ -6,8 +6,9 @@ export const ADMIN_COOKIE_NAME = 'kira_admin_auth';
 function adminSessionValue(): string | null {
   const password = process.env.ADMIN_PASSWORD;
   if (!password) return null;
+  const sessionResetKey = process.env.ADMIN_SESSION_RESET_KEY ?? '';
   return createHash('sha256')
-    .update(`kira_admin_auth:v1:${password}`)
+    .update(JSON.stringify(['kira_admin_auth:v2', password, sessionResetKey]))
     .digest('base64url');
 }
 

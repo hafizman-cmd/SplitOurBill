@@ -159,9 +159,9 @@ export default function ReceiptScanner({
           <div onClick={(event) => event.stopPropagation()} className="my-auto w-full max-w-sm rounded-3xl border border-white/15 bg-[#111217] p-6 shadow-2xl">
             <h2 id="developer-unlock-title" className="text-xl font-semibold text-white">Developer access</h2>
             <p className="mt-2 text-sm text-rose-300">Enter the admin password again to turn developer mode on and bypass the daily scan limit.</p>
-            <form onSubmit={unlock} className="mt-4 space-y-4">
+            <form onSubmit={unlock} autoComplete="off" className="mt-4 space-y-4">
               <label className="block text-sm text-slate-300">Admin password
-                <input type="password" required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-white" />
+                <input type="password" required autoComplete="off" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-white" />
               </label>
               {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
               <div className="flex gap-3">

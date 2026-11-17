@@ -177,13 +177,13 @@ export default function AdminPage() {
   if (authenticated !== true) {
     return (
       <main className="flex min-h-screen items-center justify-center px-4 text-slate-100">
-        <form onSubmit={submitPassword} className="w-full max-w-sm rounded-2xl border-x border-white/10 border-b border-white/5 border-t border-white/20 bg-slate-900/50 p-7 shadow-xl shadow-black/40 backdrop-blur-xl">
+        <form onSubmit={submitPassword} autoComplete="off" className="w-full max-w-sm rounded-2xl border-x border-white/10 border-b border-white/5 border-t border-white/20 bg-slate-900/50 p-7 shadow-xl shadow-black/40 backdrop-blur-xl">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-400/30 bg-blue-600/20 text-blue-300"><Lock className="w-5 h-5" /></div>
           <h1 className="mt-5 text-center text-xl font-bold tracking-tight text-white">Analytics Admin</h1>
           <p className="mt-2 text-center text-sm leading-relaxed text-slate-400">Enter the private passcode to view anonymous app telemetry.</p>
           <label className="mt-6 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
             Secret passcode
-            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="glass-input mt-2 w-full text-sm" autoComplete="current-password" autoFocus />
+            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="glass-input mt-2 w-full text-sm" autoComplete="off" autoFocus />
           </label>
           {authError && <p className="mt-3 text-xs font-medium text-rose-300">{authError}</p>}
           <button type="submit" disabled={authenticated === null} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/35 transition active:scale-95 disabled:opacity-60"><Lock className="w-4 h-4" />Unlock dashboard</button>
