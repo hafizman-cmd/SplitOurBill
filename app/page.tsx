@@ -32,6 +32,7 @@ import Footer from './components/Footer';
 import Toast from './components/Toast';
 import { logEvent } from '@/lib/telemetry';
 import DailyScanLimitModal from './components/DailyScanLimitModal';
+import InstallChoiceModal from './components/InstallChoiceModal';
 
 export default function Home() {
   const [bankDetails, setBankDetails] = useState('');
@@ -660,6 +661,7 @@ export default function Home() {
         />
 
         {toast && <Toast message={toast} />}
+        <InstallChoiceModal />
       </div>
     </div>
   );

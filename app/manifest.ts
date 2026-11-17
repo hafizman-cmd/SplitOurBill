@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'AI-driven receipt splitter optimized for Southeast Asia / Malaysia',
     start_url: '/',
     display: 'standalone',
-    background_color: '#ffffff',
+    background_color: '#0f172a',
     theme_color: '#0F1117',
     icons: [
       {

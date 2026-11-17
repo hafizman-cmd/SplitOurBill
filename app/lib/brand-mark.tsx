@@ -7,28 +7,14 @@ export function BrandMark() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #005FCC 0%, #007AFF 55%, #47A3FF 100%)',
+        background: '#0f172a',
       }}
     >
-      <svg viewBox="0 0 512 512" style={{ width: '100%', height: '100%' }}>
-        <circle cx="256" cy="256" r="150" fill="none" stroke="#ffffff" strokeWidth="30" />
-        <line
-          x1="70"
-          y1="256"
-          x2="352"
-          y2="256"
-          stroke="#ffffff"
-          strokeWidth="30"
-          strokeLinecap="round"
-        />
-        <polyline
-          points="352,180 440,256 352,332"
-          fill="none"
-          stroke="#ffffff"
-          strokeWidth="30"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+      <svg viewBox="0 0 512 512" style={{ width: '78%', height: '78%' }} fill="none" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M106 75v351l50-27 50 27 50-27 50 27 50-27 50 27V75a20 20 0 0 0-20-20H126a20 20 0 0 0-20 20Z" fill="#102a4a" stroke="#007aff" strokeWidth="22" />
+        <path d="M162 159h119M162 219h86" stroke="#94a3b8" strokeWidth="18" />
+        <path d="M158 322h171" stroke="#00f0ff" strokeWidth="24" />
+        <path d="M345 75v32m0 40v32m-40-72h80" stroke="#00f0ff" strokeWidth="20" />
       </svg>
     </div>
   )

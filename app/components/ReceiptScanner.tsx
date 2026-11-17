@@ -73,6 +73,7 @@ export default function ReceiptScanner({
   };
 
   return (
+    <>
     <section className="glass-card p-5">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -125,9 +126,10 @@ export default function ReceiptScanner({
           {scanError}
         </p>
       )}
+    </section>
       {unlockOpen && (
-        <div role="dialog" aria-modal="true" aria-labelledby="developer-unlock-title" onClick={() => setUnlockOpen(false)} className="fixed inset-0 z-[70] flex items-center justify-center bg-black/65 px-5 backdrop-blur-md">
-          <div onClick={(event) => event.stopPropagation()} className="w-full max-w-sm rounded-3xl border border-white/15 bg-[#111217] p-6 shadow-2xl">
+        <div role="dialog" aria-modal="true" aria-labelledby="developer-unlock-title" onClick={() => setUnlockOpen(false)} className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/65 px-5 py-6 backdrop-blur-md">
+          <div onClick={(event) => event.stopPropagation()} className="my-auto w-full max-w-sm rounded-3xl border border-white/15 bg-[#111217] p-6 shadow-2xl">
             <h2 id="developer-unlock-title" className="text-xl font-semibold text-white">Developer access</h2>
             <p className="mt-2 text-sm text-slate-300">Enter the admin password to bypass the daily scan limit for this session.</p>
             <form onSubmit={unlock} className="mt-4 space-y-4">
@@ -143,6 +145,6 @@ export default function ReceiptScanner({
           </div>
         </div>
       )}
-    </section>
+    </>
   );
 }
