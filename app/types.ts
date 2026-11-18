@@ -7,7 +7,16 @@ export type Item = {
   assigned: string[];
 };
 
+export type ReceiptCharges = {
+  discount?: number;
+  serviceAmount?: number;
+  taxAmount?: number;
+};
+
 export type ScanResponse = {
+  receiptCharges?: ReceiptCharges;
+  printedTotal?: number;
+  reviewNotes?: string[];
   items: { name: string; price: number }[];
   serviceChargePercent: number;
   taxPercent: number;
@@ -18,6 +27,7 @@ export type ScanResponse = {
 };
 
 export type ReceiptSnapshot = {
+  receiptCharges?: ReceiptCharges;
   items: Item[];
   people: string[];
   paidStatus: Record<string, boolean>;
@@ -44,6 +54,7 @@ export type PersonBreakdown = {
 };
 
 export type SplitResult = {
+  discount: number;
   subtotal: number;
   serviceCharge: number;
   serviceAmt: number;

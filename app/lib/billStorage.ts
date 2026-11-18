@@ -1,8 +1,9 @@
-import type { HistoryEntry, Item, ReceiptSnapshot } from '../types';
+import type { HistoryEntry, Item, ReceiptCharges, ReceiptSnapshot } from '../types';
 import { CURRENCIES, type CurrencyCode } from './currency';
 
 export type BillDraft = {
   version: 1;
+  receiptCharges?: ReceiptCharges;
   historyId: string | null;
   restaurantName: string;
   billDate: string;
@@ -22,6 +23,11 @@ const strings = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 const finite = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value);
+const validReceiptCharges = (value: unknown): boolean =>
+  value === undefined || (record(value) && !Array.isArray(value) &&
+    ['discount', 'serviceAmount', 'taxAmount'].every((key) =>
+      value[key] === undefined || (finite(value[key]) && value[key] >= 0)));
+
 const currencyCode = (value: unknown): value is CurrencyCode =>
   typeof value === 'string' && Object.hasOwn(CURRENCIES, value);
 const items = (value: unknown): value is Item[] =>
@@ -38,7 +44,7 @@ export function parseBillDraft(raw: string): BillDraft | null {
       !(value.historyId === null || typeof value.historyId === 'string') ||
       typeof value.restaurantName !== 'string' || typeof value.billDate !== 'string' ||
       !items(value.items) || !strings(value.people) || !paidStatus(value.paidStatus) ||
-      !currencyCode(value.currency) ||
+      !validReceiptCharges(value.receiptCharges) || !currencyCode(value.currency) ||
       !['serviceChargeInput', 'taxInput', 'roundingAdjustmentInput', 'rateInput'].every((key) => typeof value[key] === 'string')) return null;
     return value as BillDraft;
   } catch {
@@ -51,7 +57,7 @@ export function isHistoryEntry(value: unknown): value is HistoryEntry {
     typeof value.restaurantName !== 'string' || !finite(value.grandTotal) ||
     !finite(value.itemsCount) || !record(value.receiptData)) return false;
   const snapshot = value.receiptData;
-  return items(snapshot.items) && strings(snapshot.people) &&
+  return validReceiptCharges(snapshot.receiptCharges) && items(snapshot.items) && strings(snapshot.people) &&
     (snapshot.paidStatus === undefined || paidStatus(snapshot.paidStatus)) &&
     finite(snapshot.serviceCharge) && finite(snapshot.tax) &&
     (snapshot.roundingAdjustment === undefined || finite(snapshot.roundingAdjustment)) &&
@@ -62,6 +68,7 @@ export function isHistoryEntry(value: unknown): value is HistoryEntry {
 export function snapshotFromDraft(draft: BillDraft): ReceiptSnapshot {
   return {
     items: draft.items,
+    receiptCharges: draft.receiptCharges,
     people: draft.people,
     paidStatus: draft.paidStatus,
     serviceCharge: Math.max(0, Number(draft.serviceChargeInput) || 0),

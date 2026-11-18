@@ -1,4 +1,4 @@
-import type { Item, PersonBreakdown, SplitResult } from '../types';
+import type { Item, PersonBreakdown, ReceiptCharges, SplitResult } from '../types';
 import { round2 } from './utils';
 import { formatMoney, type CurrencyCode } from './currency';
 
@@ -8,15 +8,18 @@ export function computeSplit(
   serviceChargePercent: number,
   taxPercent: number,
   roundingAdjustment = 0,
+  receiptCharges?: ReceiptCharges,
 ): SplitResult {
   const serviceCharge = Math.max(0, serviceChargePercent) || 0;
   const tax = Math.max(0, taxPercent) || 0;
   const rounding = Number.isFinite(roundingAdjustment) ? round2(roundingAdjustment) : 0;
 
   const subtotal = round2(items.reduce((sum, it) => sum + it.price, 0));
-  const serviceAmt = round2((subtotal * serviceCharge) / 100);
-  const taxAmt = round2((subtotal * tax) / 100);
-  const grandTotal = round2(subtotal + serviceAmt + taxAmt + rounding);
+  const discount = Math.min(subtotal, round2(receiptCharges?.discount ?? 0));
+  const discountedSubtotal = round2(subtotal - discount);
+  const serviceAmt = round2(receiptCharges?.serviceAmount ?? (discountedSubtotal * serviceCharge) / 100);
+  const taxAmt = round2(receiptCharges?.taxAmount ?? (discountedSubtotal * tax) / 100);
+  const grandTotal = Math.max(0, round2(discountedSubtotal + serviceAmt + taxAmt + rounding));
   const multiplier = subtotal > 0 ? grandTotal / subtotal : 0;
 
   const perPerson: Record<string, PersonBreakdown> = {};
@@ -69,6 +72,7 @@ export function computeSplit(
 
   return {
     subtotal,
+    discount,
     serviceCharge,
     serviceAmt,
     tax,
@@ -120,6 +124,7 @@ export function buildShareText(
   lines.push('TOTAL AMOUNT DUE');
   lines.push(DIVIDER);
   lines.push(`Subtotal: ${amt(calc.subtotal)}`);
+  if (calc.discount > 0) lines.push(`Discount: -${amt(calc.discount)}`);
   lines.push(`Service Charge (${calc.serviceCharge}%): ${amt(calc.serviceAmt)}`);
   lines.push(`Tax (${calc.tax}%): ${amt(calc.taxAmt)}`);
   if (calc.roundingAdjustment !== 0) {

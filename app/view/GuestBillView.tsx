@@ -298,6 +298,12 @@ export default function GuestBillView({ bill }: { bill: SharedBill }) {
                   <span>{money(bill.taxAmt)}</span>
                 </div>
               )}
+              {bill.discount != null && bill.discount > 0 && (
+                <div className="flex justify-between">
+                  <span>Discount</span>
+                  <span>-{money(bill.discount)}</span>
+                </div>
+              )}
               {bill.roundingAdjustment !== 0 && (
                 <div className="flex justify-between">
                   <span>Rounding Adjustment</span>

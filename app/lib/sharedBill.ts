@@ -11,6 +11,7 @@ export type SharedBill = {
   people: string[];
   perPerson: Record<string, SharedPerson>;
   subtotal: number;
+  discount?: number;
   serviceCharge: number;
   serviceAmt: number;
   tax: number;
@@ -35,7 +36,7 @@ export function parseSharedBill(value: unknown): SharedBill | null {
   const bill = record(value);
   if (!bill) return null;
   const {
-    restaurantName, date, currency, myrRate, people, subtotal, serviceCharge,
+    restaurantName, date, currency, myrRate, people, subtotal, discount, serviceCharge,
     serviceAmt, tax, taxAmt, roundingAdjustment, grandTotal, bankDetails, qrPayload,
   } = bill;
   const entries = record(bill.perPerson);
@@ -46,7 +47,7 @@ export function parseSharedBill(value: unknown): SharedBill | null {
     !finite(myrRate) || myrRate < 0 ||
     !Array.isArray(people) || people.length === 0 || new Set(people).size !== people.length ||
     !entries ||
-    !finite(subtotal) || !finite(serviceCharge) || !finite(serviceAmt) ||
+    !finite(subtotal) || (discount !== undefined && (!finite(discount) || discount < 0)) || !finite(serviceCharge) || !finite(serviceAmt) ||
     !finite(tax) || !finite(taxAmt) || !finite(roundingAdjustment) || !finite(grandTotal) ||
     typeof bankDetails !== 'string' || typeof qrPayload !== 'string' ||
     (qrPayload !== '' && (!qrPayload.startsWith('0002') || qrPayload.length > 2048))
@@ -71,7 +72,7 @@ export function parseSharedBill(value: unknown): SharedBill | null {
 
   return {
     restaurantName, date, currency: currency as CurrencyCode, myrRate,
-    people: names, perPerson: Object.fromEntries(perPerson), subtotal, serviceCharge,
+    people: names, perPerson: Object.fromEntries(perPerson), subtotal, discount, serviceCharge,
     serviceAmt, tax, taxAmt, roundingAdjustment, grandTotal, bankDetails, qrPayload,
   };
 }

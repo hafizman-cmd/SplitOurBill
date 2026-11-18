@@ -4,13 +4,16 @@ import { useState } from 'react';
 import Modal from './Modal';
 import Image from 'next/image';
 import { Plus, Trash2, X } from 'lucide-react';
-import type { Item } from '../types';
+import type { Item, ReceiptCharges } from '../types';
 import { computeSplit } from '../lib/split';
 import { formatMoney, type CurrencyCode } from '../lib/currency';
 import { uid } from '../lib/utils';
 
 export type ReviewedScan = {
   items: Item[];
+  receiptCharges?: ReceiptCharges;
+  printedTotal?: number;
+  reviewNotes?: string[];
   restaurantName: string;
   serviceCharge: number;
   tax: number;
@@ -32,10 +35,27 @@ export default function ScanReviewModal({ scan, image, currency, existingItems, 
   const [serviceCharge, setServiceCharge] = useState(String(scan.serviceCharge));
   const [tax, setTax] = useState(String(scan.tax));
   const [rounding, setRounding] = useState(String(scan.roundingAdjustment));
+  const [discount, setDiscount] = useState(String(scan.receiptCharges?.discount ?? ''));
+  const [serviceAmount, setServiceAmount] = useState(String(scan.receiptCharges?.serviceAmount ?? ''));
+  const [taxAmount, setTaxAmount] = useState(String(scan.receiptCharges?.taxAmount ?? ''));
+  const [printedTotal, setPrintedTotal] = useState(String(scan.printedTotal ?? ''));
+  const optionalAmounts = [
+    ['Discount', discount, setDiscount],
+    ['Service charge amount', serviceAmount, setServiceAmount],
+    ['Tax amount', taxAmount, setTaxAmount],
+    ['Printed grand total', printedTotal, setPrintedTotal],
+  ] as const;
   const validNumber = (value: string, allowNegative = false) => value.trim() !== '' && Number.isFinite(Number(value)) && (allowNegative || Number(value) >= 0);
-  const valid = items.length > 0 && items.every((item) => item.name.trim() && validNumber(item.price)) && validNumber(serviceCharge) && validNumber(tax) && validNumber(rounding, true);
+  const valid = items.length > 0 && items.every((item) => item.name.trim() && validNumber(item.price)) && validNumber(serviceCharge) && validNumber(tax) && validNumber(rounding, true) &&
+    optionalAmounts.every(([, value]) => value === '' || validNumber(value));
   const reviewedItems = items.map((item) => ({ ...item, name: item.name.trim(), price: Math.round(Number(item.price) * 100) / 100 }));
-  const totals = valid ? computeSplit([...existingItems, ...reviewedItems], [], Number(serviceCharge), Number(tax), Number(rounding)) : null;
+  const receiptCharges: ReceiptCharges = {
+    discount: discount === '' ? undefined : Number(discount),
+    serviceAmount: serviceAmount === '' ? undefined : Number(serviceAmount),
+    taxAmount: taxAmount === '' ? undefined : Number(taxAmount),
+  };
+  const totals = valid ? computeSplit(reviewedItems, [], Number(serviceCharge), Number(tax), Number(rounding), receiptCharges) : null;
+  const difference = totals && printedTotal !== '' ? Math.round((totals.grandTotal - Number(printedTotal)) * 100) / 100 : null;
 
   return (
     <Modal onClose={onClose} aria-labelledby="scan-review-title" aria-describedby="scan-review-description" className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-3 backdrop-blur-md sm:p-6" onClick={onClose}>
@@ -49,7 +69,7 @@ export default function ScanReviewModal({ scan, image, currency, existingItems, 
         </div>
         <form className="flex min-h-0 flex-col" onSubmit={(event) => {
           event.preventDefault();
-          if (valid) onConfirm({ items: reviewedItems, restaurantName: restaurantName.trim(), serviceCharge: Number(serviceCharge), tax: Number(tax), roundingAdjustment: Number(rounding) });
+          if (valid) onConfirm({ items: reviewedItems, restaurantName: restaurantName.trim(), serviceCharge: Number(serviceCharge), tax: Number(tax), roundingAdjustment: Number(rounding), receiptCharges });
         }}>
           <div className="space-y-5 overflow-y-auto p-5">
             <details className="rounded-xl border border-white/15 p-3">
@@ -87,10 +107,34 @@ export default function ScanReviewModal({ scan, image, currency, existingItems, 
             <label className="block text-sm text-slate-300">Rounding adjustment ({currency})
               <input required type="number" step="0.01" inputMode="decimal" value={rounding} onChange={(event) => setRounding(event.target.value)} className="glass-input mt-1 w-full" />
             </label>
-            {existingItems.length > 0 && <p className="text-sm text-amber-200">These items will be added to your {existingItems.length} existing items. The charges above will apply to the combined bill.</p>}
+            <div className="grid grid-cols-2 gap-3">
+              {optionalAmounts.map(([label, value, setValue]) => (
+                <label key={label} className="text-sm text-slate-300">{label} ({currency})
+                  <input type="number" min="0" step="0.01" inputMode="decimal" value={value} onChange={(event) => setValue(event.target.value)} className="glass-input mt-1 w-full" />
+                </label>
+              ))}
+              <p className="col-span-2 text-sm text-slate-300">Enter discounts as positive amounts. Leave service charge or tax amounts blank to calculate them from the rates above.</p>
+            </div>
+            {existingItems.length > 0 && <p className="text-sm text-amber-200">These items will be added to your {existingItems.length} existing items. The preview below is for this receipt only. Its charges and discount will apply to the combined bill.</p>}
             {totals && <dl className="space-y-2 rounded-2xl bg-blue-500/10 p-4 text-sm">
-              {([['Subtotal', totals.subtotal], ['Service charge', totals.serviceAmt], ['Tax', totals.taxAmt], ['Rounding', totals.roundingAdjustment], ['Bill total', totals.grandTotal]] as const).map(([label, amount]) => <div key={label} className="flex justify-between gap-3"><dt>{label}</dt><dd className="font-semibold tabular-nums">{formatMoney(amount, currency)}</dd></div>)}
+              {([['Subtotal', totals.subtotal], ['Discount', -totals.discount], ['Service charge', totals.serviceAmt], ['Tax', totals.taxAmt], ['Rounding', totals.roundingAdjustment], ['Calculated receipt total', totals.grandTotal]] as const).map(([label, amount]) => <div key={label} className="flex justify-between gap-3"><dt>{label}</dt><dd className="font-semibold tabular-nums">{formatMoney(amount, currency)}</dd></div>)}
             </dl>}
+            {difference !== null && (
+              <p role="status" className={difference === 0 ? 'text-sm text-emerald-200' : 'text-sm text-amber-200'}>
+                {difference === 0
+                  ? 'Calculated total matches the printed total.'
+                  : `Calculated total is ${formatMoney(Math.abs(difference), currency)} ${difference > 0 ? 'above' : 'below'} the printed total. Check the items and charges before confirming.`}
+              </p>
+            )}
+            {Boolean(scan.reviewNotes?.length) && (
+              <div className="rounded-xl border border-amber-300/25 p-3 text-sm text-amber-200">
+                <h3 className="font-semibold">Receipt lines to check</h3>
+                <p className="mt-1">These lines may affect the total. Check the photo before confirming.</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  {scan.reviewNotes?.map((note, index) => <li key={index}>{note}</li>)}
+                </ul>
+              </div>
+            )}
             {!valid && <p role="status" className="text-sm text-amber-200">Add at least one item and fill in all item names and valid amounts. Prices and percentages must be zero or more.</p>}
           </div>
           <div className="flex gap-3 border-t border-white/10 p-4">

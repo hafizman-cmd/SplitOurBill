@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Save, Share2 } from 'lucide-react';
-import type { HistoryEntry, Item, ScanResponse, SplitResult } from './types';
+import type { HistoryEntry, Item, ReceiptCharges, ScanResponse, SplitResult } from './types';
 import {
   HISTORY_STORAGE_KEY,
   ACTIVE_BILL_STORAGE_KEY,
@@ -62,6 +62,7 @@ export default function Home() {
   const [items, setItems] = useState<Item[]>([]);
 
   const [serviceChargeInput, setServiceChargeInput] = useState('0');
+  const [receiptCharges, setReceiptCharges] = useState<ReceiptCharges>();
   const [taxInput, setTaxInput] = useState('0');
   const [roundingAdjustmentInput, setRoundingAdjustmentInput] = useState('0');
 
@@ -147,6 +148,7 @@ export default function Home() {
           setBillDate(restored.billDate);
           setServiceChargeInput(restored.serviceChargeInput);
           setTaxInput(restored.taxInput);
+          setReceiptCharges(restored.receiptCharges);
           setRoundingAdjustmentInput(restored.roundingAdjustmentInput);
           setCurrency(restored.currency);
           setRateInput(restored.rateInput);
@@ -167,6 +169,7 @@ export default function Home() {
 
   const draft = useMemo<BillDraft>(() => ({
     version: 1,
+    receiptCharges,
     historyId: activeHistoryId,
     restaurantName,
     billDate,
@@ -178,7 +181,7 @@ export default function Home() {
     roundingAdjustmentInput,
     currency,
     rateInput,
-  }), [activeHistoryId, restaurantName, billDate, items, people, paidStatus, serviceChargeInput, taxInput, roundingAdjustmentInput, currency, rateInput]);
+  }), [receiptCharges, activeHistoryId, restaurantName, billDate, items, people, paidStatus, serviceChargeInput, taxInput, roundingAdjustmentInput, currency, rateInput]);
   const hasCurrentBill = items.length > 0 || people.length > 0 || restaurantName.trim() !== '' ||
     serviceChargeInput !== '0' || taxInput !== '0' || roundingAdjustmentInput !== '0' || currency !== 'MYR';
 
@@ -191,7 +194,7 @@ export default function Home() {
         const next = history.map((entry) => entry.id === draft.historyId ? {
           ...entry,
           restaurantName: draft.restaurantName.trim() || 'Untitled bill',
-          grandTotal: computeSplit(snapshot.items, snapshot.people, snapshot.serviceCharge, snapshot.tax, snapshot.roundingAdjustment).grandTotal,
+          grandTotal: computeSplit(snapshot.items, snapshot.people, snapshot.serviceCharge, snapshot.tax, snapshot.roundingAdjustment, snapshot.receiptCharges).grandTotal,
           itemsCount: snapshot.items.length,
           receiptData: snapshot,
         } : entry);
@@ -321,6 +324,9 @@ export default function Home() {
           serviceCharge: scannedServiceCharge,
           tax: scannedTax,
           roundingAdjustment: scannedRoundingAdjustment,
+          receiptCharges: data.receiptCharges,
+          printedTotal: data.printedTotal,
+          reviewNotes: data.reviewNotes,
         },
       });
     } catch (err) {
@@ -341,10 +347,11 @@ export default function Home() {
     setItems(nextItems);
     setServiceChargeInput(String(scan.serviceCharge));
     setTaxInput(String(scan.tax));
+    setReceiptCharges(scan.receiptCharges);
     setRoundingAdjustmentInput(String(scan.roundingAdjustment));
     setRestaurantName(scan.restaurantName);
     setBillDate(new Date().toISOString());
-    saveHistory(scan.restaurantName || 'Receipt', nextItems, scan.serviceCharge, scan.tax, scan.roundingAdjustment);
+    saveHistory(scan.restaurantName || 'Receipt', nextItems, scan.serviceCharge, scan.tax, scan.roundingAdjustment, scan.receiptCharges);
     setPendingScan(null);
     setShowUnassignedOnly(false);
     showToast(`Added ${scan.items.length} reviewed item(s). Assign who shared each one.`);
@@ -357,6 +364,7 @@ export default function Home() {
     serviceCharge: number,
     tax: number,
     roundingAdjustment: number,
+    receiptCharges?: ReceiptCharges,
   ) => {
     const receiptData = {
       items: snapshotItems,
@@ -365,6 +373,7 @@ export default function Home() {
       serviceCharge,
       tax,
       roundingAdjustment,
+      receiptCharges,
       currency,
       myrRate: currency === 'MYR' ? 1 : myrRate,
     };
@@ -374,6 +383,7 @@ export default function Home() {
       serviceCharge,
       tax,
       roundingAdjustment,
+      receiptCharges,
     );
     const nowIso = new Date().toISOString();
     const entry: HistoryEntry = {
@@ -401,7 +411,7 @@ export default function Home() {
   const saveCurrentBill = () => saveHistory(
     restaurantName.trim() || 'Untitled bill', items,
     Math.max(0, Number(serviceChargeInput) || 0),
-    Math.max(0, Number(taxInput) || 0), Number(roundingAdjustmentInput) || 0,
+    Math.max(0, Number(taxInput) || 0), Number(roundingAdjustmentInput) || 0, receiptCharges,
   );
 
   const requestHistoryEntry = (entry: HistoryEntry) => {
@@ -430,6 +440,7 @@ export default function Home() {
     setBillDate(entry.date);
     setServiceChargeInput(String(snap.serviceCharge));
     setTaxInput(String(snap.tax));
+    setReceiptCharges(snap.receiptCharges);
     setRoundingAdjustmentInput(String(snap.roundingAdjustment ?? 0));
     setCurrency(snap.currency ?? 'MYR');
     setRateInput(
@@ -450,6 +461,7 @@ export default function Home() {
     setBillDate('');
     setServiceChargeInput('0');
     setTaxInput('0');
+    setReceiptCharges(undefined);
     setRoundingAdjustmentInput('0');
     setCurrency('MYR');
     setRateInput('');
@@ -607,8 +619,9 @@ export default function Home() {
         Math.max(0, Number(serviceChargeInput) || 0),
         Math.max(0, Number(taxInput) || 0),
         Number(roundingAdjustmentInput) || 0,
+        receiptCharges,
       ),
-    [items, people, serviceChargeInput, taxInput, roundingAdjustmentInput],
+    [items, people, serviceChargeInput, taxInput, roundingAdjustmentInput, receiptCharges],
   );
 
   const openShareModal = async () => {
@@ -646,6 +659,7 @@ export default function Home() {
         }),
       ),
       subtotal: calc.subtotal,
+      discount: calc.discount,
       serviceCharge: calc.serviceCharge,
       serviceAmt: calc.serviceAmt,
       tax: calc.tax,
@@ -773,8 +787,15 @@ export default function Home() {
               serviceChargeInput={serviceChargeInput}
               taxInput={taxInput}
               roundingAdjustmentInput={roundingAdjustmentInput}
-              onServiceChargeChange={setServiceChargeInput}
-              onTaxChange={setTaxInput}
+              receiptCharges={receiptCharges}
+              onServiceChargeChange={(value) => {
+                setServiceChargeInput(value);
+                setReceiptCharges((current) => current && { ...current, serviceAmount: undefined });
+              }}
+              onTaxChange={(value) => {
+                setTaxInput(value);
+                setReceiptCharges((current) => current && { ...current, taxAmount: undefined });
+              }}
               onRoundingAdjustmentChange={setRoundingAdjustmentInput}
               currency={currency}
               onCurrencyChange={handleCurrencyChange}

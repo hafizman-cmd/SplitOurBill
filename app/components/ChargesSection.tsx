@@ -1,13 +1,16 @@
 'use client';
 
+import type { ReceiptCharges } from '../types';
 import { ArrowRightLeft, CreditCard, Info, RefreshCw } from 'lucide-react';
 import {
   CURRENCIES,
   CURRENCY_OPTIONS,
+  formatMoney,
   type CurrencyCode,
 } from '../lib/currency';
 
 type Props = {
+  receiptCharges?: ReceiptCharges;
   serviceChargeInput: string;
   taxInput: string;
   roundingAdjustmentInput: string;
@@ -23,6 +26,7 @@ type Props = {
 };
 
 export default function ChargesSection({
+  receiptCharges,
   serviceChargeInput,
   taxInput,
   roundingAdjustmentInput,
@@ -99,6 +103,13 @@ export default function ChargesSection({
         </div>
       </div>
 
+      {(receiptCharges?.serviceAmount !== undefined || receiptCharges?.taxAmount !== undefined) && (
+        <p className="mt-2 text-sm text-slate-300">
+          Using receipt amounts{receiptCharges.serviceAmount !== undefined && ` for service charge (${formatMoney(receiptCharges.serviceAmount, currency)})`}
+          {receiptCharges.taxAmount !== undefined && `${receiptCharges.serviceAmount !== undefined ? ' and' : ' for'} tax (${formatMoney(receiptCharges.taxAmount, currency)})`}.
+          Edit a rate to recalculate that charge.
+        </p>
+      )}
       <div className="mt-3">
         <label htmlFor="rounding-adjustment" className="mb-1.5 block text-sm font-semibold text-slate-300">
           Rounding Adjustment

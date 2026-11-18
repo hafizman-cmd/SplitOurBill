@@ -46,9 +46,12 @@ export default function SummarySection({
       </h2>
 
       {people.length > 0 && unassignedCount === 0 && (
+        <p className="mb-2 text-sm text-slate-300">Payment marks are a manual record on this device. The app cannot verify bank transfers.</p>
+      )}
+      {people.length > 0 && unassignedCount === 0 && (
         <div className="mb-3 flex items-center justify-between rounded-xl border border-white/10 bg-slate-950/30 px-3 py-2 text-sm text-slate-300 backdrop-blur-md">
           <span>
-            Collected: {money(people.reduce((total, person) =>
+            Marked as paid: {money(people.reduce((total, person) =>
               paidStatus[person] ? total + (calc.perPerson[person]?.final ?? 0) : total,
             0))} / {money(calc.grandTotal)}
           </span>
@@ -82,6 +85,11 @@ export default function SummarySection({
             )}
           </span>
         </div>
+        {calc.discount > 0 && (
+          <div className="flex justify-between text-slate-300">
+            <span>Discount</span><span>{signedMoney(-calc.discount)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-slate-300">
           <span>Service Charge ({calc.serviceCharge}%)</span>
           <span className="flex flex-col items-end leading-tight">
