@@ -190,6 +190,31 @@ const receiptSchema = {
   required: ['restaurantName', 'items', 'serviceChargePercent', 'taxPercent', 'roundingAdjustment'],
 };
 
+async function scanWithGroq(image: { mimeType: string; data: string }): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('Groq is not configured');
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    body: JSON.stringify({
+      model: 'qwen/qwen3.8-27b',
+      reasoning_effort: 'none',
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: [
+        { type: 'text', text: 'Extract the restaurant name, line items, service charge percentage, tax or SST percentage, and receipt rounding adjustment. For each item use the total line price, accounting for quantity; do not include subtotal, tax, service charge, rounding, or grand total as items. Use a signed rounding amount, and use 0 for absent charges or rounding. Return JSON with restaurantName (string), items (array of objects with name and numeric price), serviceChargePercent, taxPercent, and roundingAdjustment (numbers). Use an empty restaurantName if unknown.' },
+        { type: 'image_url', image_url: { url: `data:${image.mimeType};base64,${image.data}` } },
+      ] }],
+    }),
+  });
+  if (!response.ok) throw new Error('Groq request failed');
+  const result: unknown = await response.json();
+  if (typeof result !== 'object' || result === null || !('choices' in result) || !Array.isArray(result.choices)) throw new Error('Invalid Groq response');
+  const content: unknown = result.choices[0]?.message?.content;
+  if (typeof content !== 'string') throw new Error('Invalid Groq response');
+  return content;
+}
+
 export async function POST(req: NextRequest) {
   const respond = async (body: object, status: number, code: string) => {
     await recordScanEvent(req, status, code);
@@ -298,7 +323,15 @@ export async function POST(req: NextRequest) {
       } else {
         console.error('[scan] Gemini request failed before an API status was available.');
       }
-      return respond(
+      const fallbackEligible = controller.signal.aborted || (error instanceof ApiError && (error.status === 429 || error.status >= 500));
+      if (fallbackEligible && process.env.GROQ_API_KEY) {
+        try {
+          rawText = await scanWithGroq(normalized);
+        } catch {
+          console.error('[scan] Groq fallback failed.');
+          return respond({ error: 'The AI service failed to process the receipt. Please try again.' }, 502, 'upstream_error');
+        }
+      } else return respond(
         { error: controller.signal.aborted
           ? 'The AI service took too long to respond. Please try again.'
           : error instanceof ApiError && error.status === 503
