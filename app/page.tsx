@@ -87,6 +87,13 @@ export default function Home() {
 
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recordedOpen = useRef(false);
+
+  useEffect(() => {
+    if (recordedOpen.current) return;
+    recordedOpen.current = true;
+    logEvent('app_open');
+  }, []);
 
   const showToast = useCallback((message: string) => {
     setToast(message);

@@ -1,175 +1,148 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { brandLabel, osLabel, type AnalyticsData, type Distribution } from '@/app/lib/adminAnalytics';
+import { analyticsWindow, parseAnalyticsRange } from '@/lib/adminAnalyticsWindow';
 import { isAdminRequest } from '@/lib/adminAuth';
-import { hasTursoConfiguration, turso } from '@/lib/turso';
 import { ensureAnalyticsEventsTable } from '@/lib/analyticsSchema';
+import { hasTursoConfiguration, turso } from '@/lib/turso';
 
 export const runtime = 'nodejs';
 
-type Distribution = { label: string; count: number };
-
-const EMPTY_ANALYTICS = {
-  visits: 0,
-  scans: 0,
-  mobilePercent: 0,
-  mobileVisits: 0,
-  totalVisits: 0,
-  iosPercent: 0,
-  androidPercent: 0,
-  osDistribution: [] as Distribution[],
-  brandDistribution: [] as Distribution[],
-  recentEvents: [],
-};
-
-function value(row: Record<string, unknown>, key: string): string {
-  const entry = row[key];
-  return entry === null || entry === undefined ? '' : String(entry);
+function addCount(counts: Map<string, number>, label: string, count: number) {
+  counts.set(label, (counts.get(label) ?? 0) + count);
 }
 
-function count(rows: Record<string, unknown>[]): number {
-  return Number(rows[0]?.count ?? 0) || 0;
+function distribution(counts: Map<string, number>): Distribution[] {
+  return Array.from(counts, ([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 }
 
-function distribution(rows: Record<string, unknown>[]): Distribution[] {
-  return rows.map((row) => ({ label: value(row, 'label'), count: Number(row.count) || 0 }));
-}
-
-function cleanDeviceLabel(label: string, osName = ''): string {
-  const fallback = /ios/i.test(osName)
-    ? 'Apple'
-    : /android/i.test(osName)
-      ? 'Mobile'
-      : /mac/i.test(osName)
-        ? 'Mac'
-        : 'PC';
-  if (/windows|linux/i.test(osName)) return 'PC';
-  if (/^k$|^android(?:\s+\d+(?:\.\d+)*)?$/i.test(label.trim())) {
-    return /android/i.test(osName) || !osName ? 'Mobile' : fallback;
-  }
-  if (/^build$|^mobile$|^apple$/i.test(label.trim())) {
-    return /^build$|^mobile$/i.test(label.trim()) && !osName ? 'Mobile' : fallback;
-  }
-  if (/^(unknown|null)$/i.test(label.trim()) || !label.trim()) return fallback;
-  return label.trim();
-}
-
-function mergeDistribution(items: Distribution[], cleanLabel: (label: string) => string): Distribution[] {
-  const merged = new Map<string, number>();
-  for (const item of items) merged.set(cleanLabel(item.label), (merged.get(cleanLabel(item.label)) ?? 0) + item.count);
-  return [...merged.entries()].map(([label, count]) => ({ label, count }));
+function brandDistribution(counts: Map<string, number>): Distribution[] {
+  const known = distribution(counts).filter(({ label }) => label !== 'Unknown');
+  const other = known.slice(5).reduce((total, item) => total + item.count, 0);
+  const unknown = counts.get('Unknown') ?? 0;
+  return [
+    ...known.slice(0, 5),
+    ...(other ? [{ label: 'Other', count: other }] : []),
+    ...(unknown ? [{ label: 'Unknown', count: unknown }] : []),
+  ];
 }
 
 export async function GET(request: NextRequest) {
-  if (!isAdminRequest(request)) {
-    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-  }
+  if (!isAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+
+  const range = parseAnalyticsRange(request.nextUrl.searchParams.get('range'));
+  if (!range) return NextResponse.json({ error: 'Invalid date range.' }, { status: 400 });
   if (!hasTursoConfiguration) {
-    return NextResponse.json(EMPTY_ANALYTICS);
+    return NextResponse.json({ error: 'Telemetry database is not configured.' }, { status: 503 });
   }
+
+  const { start, end, trendStart, bucketFormat, buckets } = analyticsWindow(range);
+  const timeFilter = start ? 'created_at >= ? AND created_at <= ?' : 'created_at <= ?';
+  const args = start ? [start, end] : [end];
 
   try {
     await ensureAnalyticsEventsTable();
-    const [visitsResult, scansResult, osResult, mobileOsResult, brandsResult, recentResult] =
-      await Promise.all([
-        turso.execute(`
-          SELECT
-            COUNT(CASE WHEN event_name = 'app_open' THEN 1 END) AS app_open_count,
-            COUNT(DISTINCT NULLIF(session_id, '')) AS session_count,
-            COUNT(CASE WHEN event_name = 'app_open' AND (
-              lower(device_type) IN ('mobile', 'tablet')
-              OR lower(os_name) IN ('ios', 'android')
-            ) THEN 1 END) AS mobile_app_open_count,
-            COUNT(DISTINCT CASE WHEN
-              lower(device_type) IN ('mobile', 'tablet')
-              OR lower(os_name) IN ('ios', 'android')
-              THEN NULLIF(session_id, '') END) AS mobile_session_count
+    const [opens, scans, trend, recent] = await turso.batch([
+      {
+        sql: `SELECT os_name, lower(trim(device_type)) AS device_type,
+          COALESCE(NULLIF(trim(device_brand), ''), NULLIF(trim(device_vendor), ''), '') AS brand,
+          COUNT(*) AS count
           FROM analytics_events
-        `),
-        turso.execute("SELECT COUNT(*) AS count FROM analytics_events WHERE event_name = 'scan_completed'"),
-        turso.execute(`
-          SELECT
-            CASE
-              WHEN lower(os_name) LIKE '%ios%' THEN 'iOS'
-              WHEN lower(os_name) LIKE '%android%' THEN 'Android'
-              WHEN lower(os_name) LIKE '%mac%' THEN 'macOS'
-              WHEN lower(os_name) LIKE '%windows%' THEN 'Windows'
-              WHEN lower(os_name) LIKE '%linux%' THEN 'Linux'
-              ELSE 'Other'
-            END AS label,
-            COUNT(*) AS count
+          WHERE event_name = 'app_open' AND ${timeFilter}
+          GROUP BY os_name, lower(trim(device_type)), brand`,
+        args,
+      },
+      {
+        sql: `SELECT event_name,
+          json_extract(CASE WHEN json_valid(metadata) THEN metadata ELSE '{}' END, '$.source') AS source,
+          COUNT(*) AS count
           FROM analytics_events
-          GROUP BY label
-          ORDER BY count DESC
-        `),
-        turso.execute(`
-          SELECT
-            CASE
-              WHEN lower(os_name) LIKE '%ios%' THEN 'iOS'
-              WHEN lower(os_name) LIKE '%android%' THEN 'Android'
-              WHEN lower(os_name) LIKE '%mac%' THEN 'macOS'
-              WHEN lower(os_name) LIKE '%windows%' THEN 'Windows'
-              WHEN lower(os_name) LIKE '%linux%' THEN 'Linux'
-              ELSE 'Other'
-            END AS label,
-            COUNT(*) AS count
+          WHERE event_name IN ('scan_completed', 'scan_failed', 'scan_client_error') AND ${timeFilter}
+          GROUP BY event_name, source`,
+        args,
+      },
+      {
+        sql: `SELECT strftime(?, created_at, '+8 hours') AS bucket,
+          COUNT(CASE WHEN event_name = 'scan_completed' THEN 1 END) AS successful,
+          COUNT(CASE WHEN event_name = 'scan_failed' THEN 1 END) AS failed
           FROM analytics_events
-          WHERE lower(device_type) IN ('mobile', 'tablet')
-          GROUP BY label
-        `),
-        turso.execute(`
-          SELECT COALESCE(NULLIF(device_brand, ''), NULLIF(device_vendor, ''), 'Unknown') AS label, COUNT(*) AS count
-          FROM analytics_events
-          GROUP BY device_vendor
-          ORDER BY count DESC
-          LIMIT 8
-        `),
-        turso.execute(`
-          SELECT id, event_name, os_name, os_version,
-            COALESCE(NULLIF(device_brand, ''), NULLIF(device_vendor, ''), 'Unknown') AS device_vendor,
-            device_type, metadata, created_at
-          FROM analytics_events
-          ORDER BY created_at DESC
-          LIMIT 50
-        `),
-      ]);
+          WHERE event_name IN ('scan_completed', 'scan_failed') AND created_at >= ? AND created_at <= ?
+            AND json_extract(CASE WHEN json_valid(metadata) THEN metadata ELSE '{}' END, '$.source') = 'server'
+          GROUP BY bucket`,
+        args: [bucketFormat, trendStart, end],
+      },
+      {
+        sql: `SELECT id, event_name, os_name,
+          COALESCE(NULLIF(trim(device_brand), ''), NULLIF(trim(device_vendor), ''), '') AS brand, created_at
+          FROM analytics_events WHERE ${timeFilter}
+          ORDER BY created_at DESC, id DESC LIMIT 50`,
+        args,
+      },
+    ], 'read');
 
-    const osDistribution = distribution(osResult.rows as Record<string, unknown>[]);
-    const mobileOsDistribution = distribution(mobileOsResult.rows as Record<string, unknown>[]);
-    const mobileEvents = mobileOsDistribution.reduce((total, item) => total + item.count, 0);
-    const iosCount = mobileOsDistribution.find((item) => item.label === 'iOS')?.count ?? 0;
-    const androidCount = mobileOsDistribution.find((item) => item.label === 'Android')?.count ?? 0;
-    const visitsRow = visitsResult.rows[0] as Record<string, unknown> | undefined;
-    const appOpenCount = Number(visitsRow?.app_open_count ?? 0) || 0;
-    const sessionCount = Number(visitsRow?.session_count ?? 0) || 0;
-    const mobileAppOpenCount = Number(visitsRow?.mobile_app_open_count ?? 0) || 0;
-    const mobileSessionCount = Number(visitsRow?.mobile_session_count ?? 0) || 0;
-    const totalVisits = appOpenCount > 0 ? appOpenCount : sessionCount;
-    const mobileVisits = appOpenCount > 0 ? mobileAppOpenCount : mobileSessionCount;
+    const osCounts = new Map<string, number>();
+    const brandCounts = new Map<string, number>();
+    let appOpens = 0;
+    let mobileOpens = 0;
+    for (const row of opens.rows) {
+      const os = osLabel(String(row.os_name ?? ''));
+      const count = Number(row.count);
+      appOpens += count;
+      if (row.device_type === 'mobile' || row.device_type === 'tablet' || os === 'iOS' || os === 'Android') {
+        mobileOpens += count;
+      }
+      addCount(osCounts, os, count);
+      addCount(brandCounts, brandLabel(os, String(row.brand ?? '')), count);
+    }
 
-    return NextResponse.json({
-      visits: totalVisits,
-      scans: count(scansResult.rows as Record<string, unknown>[]),
-      mobilePercent: totalVisits > 0 ? Math.round((mobileVisits / totalVisits) * 100) : 0,
-      mobileVisits,
-      totalVisits,
-      iosPercent: mobileEvents > 0 ? Math.round((iosCount / mobileEvents) * 100) : 0,
-      androidPercent: mobileEvents > 0 ? Math.round((androidCount / mobileEvents) * 100) : 0,
-      osDistribution,
-      brandDistribution: mergeDistribution(
-        distribution(brandsResult.rows as Record<string, unknown>[]),
-        (label) => cleanDeviceLabel(label),
-      ),
-      recentEvents: (recentResult.rows as Record<string, unknown>[]).map((row) => ({
-        id: value(row, 'id'),
-        eventName: value(row, 'event_name'),
-        osName: value(row, 'os_name'),
-        osVersion: value(row, 'os_version'),
-        deviceVendor: cleanDeviceLabel(value(row, 'device_vendor'), value(row, 'os_name')),
-        deviceType: value(row, 'device_type'),
-        metadata: value(row, 'metadata'),
-        createdAt: value(row, 'created_at'),
+    let successfulScans = 0;
+    let failedScans = 0;
+    let clientErrors = 0;
+    let serverSuccesses = 0;
+    let serverFailures = 0;
+    for (const row of scans.rows) {
+      const count = Number(row.count);
+      if (row.event_name === 'scan_completed') {
+        successfulScans += count;
+        if (row.source === 'server') serverSuccesses += count;
+      } else if (row.event_name === 'scan_failed') {
+        failedScans += count;
+        if (row.source === 'server') serverFailures += count;
+      } else {
+        clientErrors += count;
+      }
+    }
+
+    const serverOutcomes = serverSuccesses + serverFailures;
+    const trendByBucket = new Map(trend.rows.map((row) => [
+      String(row.bucket), { successful: Number(row.successful), failed: Number(row.failed) },
+    ]));
+
+    const data: AnalyticsData = {
+      updatedAt: end,
+      appOpens,
+      mobileOpens,
+      successfulScans,
+      failedScans,
+      clientErrors,
+      serverSuccessRate: serverOutcomes > 0 ? 100 * serverSuccesses / serverOutcomes : null,
+      scanTrend: buckets.map(({ key, label }) => ({
+        label,
+        ...(trendByBucket.get(key) ?? { successful: 0, failed: 0 }),
       })),
-    });
+      osDistribution: distribution(osCounts),
+      brandDistribution: brandDistribution(brandCounts),
+      recentEvents: recent.rows.map((row) => ({
+        id: String(row.id),
+        eventName: String(row.event_name),
+        osName: String(row.os_name ?? ''),
+        deviceBrand: String(row.brand ?? ''),
+        createdAt: String(row.created_at),
+      })),
+    };
+
+    return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store' } });
   } catch {
-    return NextResponse.json(EMPTY_ANALYTICS);
+    return NextResponse.json({ error: 'Could not load analytics.' }, { status: 503 });
   }
 }
