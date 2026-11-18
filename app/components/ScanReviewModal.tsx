@@ -5,7 +5,7 @@ import Modal from './Modal';
 import Image from 'next/image';
 import { Plus, Trash2, X } from 'lucide-react';
 import type { Item, ReceiptCharges } from '../types';
-import { computeSplit } from '../lib/split';
+import { computeSplit, isBillAmount, MAX_BILL_AMOUNT, MAX_CHARGE_PERCENT } from '../lib/split';
 import { formatMoney, type CurrencyCode } from '../lib/currency';
 import { uid } from '../lib/utils';
 
@@ -45,16 +45,19 @@ export default function ScanReviewModal({ scan, image, currency, existingItems, 
     ['Tax amount', taxAmount, setTaxAmount],
     ['Printed grand total', printedTotal, setPrintedTotal],
   ] as const;
-  const validNumber = (value: string, allowNegative = false) => value.trim() !== '' && Number.isFinite(Number(value)) && (allowNegative || Number(value) >= 0);
-  const valid = items.length > 0 && items.every((item) => item.name.trim() && validNumber(item.price)) && validNumber(serviceCharge) && validNumber(tax) && validNumber(rounding, true) &&
-    optionalAmounts.every(([, value]) => value === '' || validNumber(value));
+  const hasRequiredInputs = items.length > 0 && items.every((item) => item.name.trim() && item.price.trim()) &&
+    serviceCharge.trim() && tax.trim() && rounding.trim();
   const reviewedItems = items.map((item) => ({ ...item, name: item.name.trim(), price: Math.round(Number(item.price) * 100) / 100 }));
   const receiptCharges: ReceiptCharges = {
     discount: discount === '' ? undefined : Number(discount),
     serviceAmount: serviceAmount === '' ? undefined : Number(serviceAmount),
     taxAmount: taxAmount === '' ? undefined : Number(taxAmount),
   };
-  const totals = valid ? computeSplit(reviewedItems, [], Number(serviceCharge), Number(tax), Number(rounding), receiptCharges) : null;
+  const calculation = hasRequiredInputs
+    ? computeSplit(reviewedItems, [], Number(serviceCharge), Number(tax), Number(rounding), receiptCharges, currency)
+    : null;
+  const totals = calculation?.issue === 'invalidAmounts' ? null : calculation;
+  const valid = Boolean(totals) && (printedTotal === '' || isBillAmount(Number(printedTotal)));
   const difference = totals && printedTotal !== '' ? Math.round((totals.grandTotal - Number(printedTotal)) * 100) / 100 : null;
 
   return (
@@ -88,7 +91,7 @@ export default function ScanReviewModal({ scan, image, currency, existingItems, 
                   </label>
                   <div className="mt-2 flex items-end gap-2">
                     <label className="block min-w-0 flex-1 text-sm text-slate-300">Price ({currency})
-                      <input required type="number" min="0" step="0.01" inputMode="decimal" value={item.price} onChange={(event) => setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, price: event.target.value } : entry))} className="glass-input mt-1 w-full" />
+                      <input required type="number" min="0" max={MAX_BILL_AMOUNT} step="0.01" inputMode="decimal" value={item.price} onChange={(event) => setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, price: event.target.value } : entry))} className="glass-input mt-1 w-full" />
                     </label>
                     <button type="button" aria-label={`Remove scanned item ${index + 1}`} onClick={() => setItems((current) => current.filter((entry) => entry.id !== item.id))} className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-rose-300 hover:bg-rose-400/10"><Trash2 size={18} /></button>
                   </div>
@@ -98,19 +101,19 @@ export default function ScanReviewModal({ scan, image, currency, existingItems, 
             </div>
             <div className="grid grid-cols-2 gap-3">
               <label className="text-sm text-slate-300">Service charge (%)
-                <input required type="number" min="0" step="any" inputMode="decimal" value={serviceCharge} onChange={(event) => setServiceCharge(event.target.value)} className="glass-input mt-1 w-full" />
+                <input required type="number" min="0" max={MAX_CHARGE_PERCENT} step="any" inputMode="decimal" value={serviceCharge} onChange={(event) => setServiceCharge(event.target.value)} className="glass-input mt-1 w-full" />
               </label>
               <label className="text-sm text-slate-300">Tax (%)
-                <input required type="number" min="0" step="any" inputMode="decimal" value={tax} onChange={(event) => setTax(event.target.value)} className="glass-input mt-1 w-full" />
+                <input required type="number" min="0" max={MAX_CHARGE_PERCENT} step="any" inputMode="decimal" value={tax} onChange={(event) => setTax(event.target.value)} className="glass-input mt-1 w-full" />
               </label>
             </div>
             <label className="block text-sm text-slate-300">Rounding adjustment ({currency})
-              <input required type="number" step="0.01" inputMode="decimal" value={rounding} onChange={(event) => setRounding(event.target.value)} className="glass-input mt-1 w-full" />
+              <input required type="number" min={-MAX_BILL_AMOUNT} max={MAX_BILL_AMOUNT} step="0.01" inputMode="decimal" value={rounding} onChange={(event) => setRounding(event.target.value)} className="glass-input mt-1 w-full" />
             </label>
             <div className="grid grid-cols-2 gap-3">
               {optionalAmounts.map(([label, value, setValue]) => (
                 <label key={label} className="text-sm text-slate-300">{label} ({currency})
-                  <input type="number" min="0" step="0.01" inputMode="decimal" value={value} onChange={(event) => setValue(event.target.value)} className="glass-input mt-1 w-full" />
+                  <input type="number" min="0" max={MAX_BILL_AMOUNT} step="0.01" inputMode="decimal" value={value} onChange={(event) => setValue(event.target.value)} className="glass-input mt-1 w-full" />
                 </label>
               ))}
               <p className="col-span-2 text-sm text-slate-300">Enter discounts as positive amounts. Leave service charge or tax amounts blank to calculate them from the rates above.</p>
@@ -135,7 +138,7 @@ export default function ScanReviewModal({ scan, image, currency, existingItems, 
                 </ul>
               </div>
             )}
-            {!valid && <p role="status" className="text-sm text-amber-200">Add at least one item and fill in all item names and valid amounts. Prices and percentages must be zero or more.</p>}
+            {!valid && <p role="status" className="text-sm text-amber-200">Enter all item names and prices. Amounts and totals can be at most 1 billion and percentages must be between 0 and 100.</p>}
           </div>
           <div className="flex gap-3 border-t border-white/10 p-4">
             <button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-white/15 px-4 text-sm">Discard</button>

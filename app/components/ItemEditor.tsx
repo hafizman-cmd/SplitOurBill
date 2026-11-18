@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { isBillAmount, MAX_BILL_AMOUNT } from '../lib/split';
 
 type Props = {
   name: string;
@@ -17,7 +18,7 @@ export default function ItemEditor({ name, price, onSave, onCancel }: Props) {
     <form className="space-y-3" onSubmit={(event) => {
       event.preventDefault();
       const amount = Number(draftPrice);
-      if (draftName.trim() && draftPrice.trim() && Number.isFinite(amount) && amount >= 0) {
+      if (draftName.trim() && draftPrice.trim() && isBillAmount(amount)) {
         onSave(draftName.trim(), Math.round(amount * 100) / 100);
       }
     }} onKeyDown={(event) => { if (event.key === 'Escape') onCancel(); }}>
@@ -25,7 +26,7 @@ export default function ItemEditor({ name, price, onSave, onCancel }: Props) {
         <input autoFocus required value={draftName} onChange={(event) => setDraftName(event.target.value)} className="glass-input mt-1 w-full" />
       </label>
       <label className="block text-sm text-slate-300">Price
-        <input required type="number" min="0" step="0.01" inputMode="decimal" value={draftPrice} onChange={(event) => setDraftPrice(event.target.value)} className="glass-input mt-1 w-full" />
+        <input required type="number" min="0" max={MAX_BILL_AMOUNT} step="0.01" inputMode="decimal" value={draftPrice} onChange={(event) => setDraftPrice(event.target.value)} className="glass-input mt-1 w-full" />
       </label>
       <div className="flex gap-2">
         <button type="submit" disabled={!draftName.trim() || !draftPrice.trim()} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Save changes</button>

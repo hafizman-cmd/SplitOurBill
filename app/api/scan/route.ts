@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ApiError, GoogleGenAI } from '@google/genai';
-import { checkScanLimit, getScansRemaining, scanIdentity } from '@/lib/scan-limiter';
+import { getScanAllowance, reserveScan, scanIdentity, settleScan } from '@/lib/scan-limiter';
 import { isAdminRequest } from '@/lib/adminAuth';
 import { recordScanEvent } from '@/lib/audit';
 
 export const runtime = 'nodejs';
 
 const UPSTREAM_TIMEOUT_MS = 30_000;
+const MAX_IMAGE_CHARS = 8_000_000;
+const MAX_SCAN_BODY_BYTES = MAX_IMAGE_CHARS + 1024;
 
 export async function GET(req: NextRequest) {
   try {
     const developer = isAdminRequest(req);
-    const { deviceId, ipHash } = scanIdentity(req);
-    const remaining = await getScansRemaining(deviceId, ipHash);
-    return NextResponse.json({ remaining, developer }, { headers: { 'Cache-Control': 'no-store' } });
+    const { remaining, resetsAt } = await getScanAllowance(scanIdentity(req));
+    return NextResponse.json({ remaining, resetsAt, developer }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {
     return NextResponse.json({ error: 'Could not load scan allowance.' }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
   }
@@ -258,18 +259,63 @@ async function scanWithGroq(image: { mimeType: string; data: string }): Promise<
   return content;
 }
 
+async function readScanBody(req: NextRequest): Promise<string | null> {
+  if (Number(req.headers.get('content-length')) > MAX_SCAN_BODY_BYTES) return null;
+  const reader = req.body?.getReader();
+  if (!reader) return '';
+
+  const decoder = new TextDecoder();
+  let size = 0;
+  let body = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) return body + decoder.decode();
+      size += value.byteLength;
+      if (size > MAX_SCAN_BODY_BYTES) {
+        void reader.cancel().catch(() => {});
+        return null;
+      }
+      body += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export async function POST(req: NextRequest) {
+  const identity = scanIdentity(req);
+  let reservation: string | null = null;
   const respond = async (body: object, status: number, code: string) => {
+    if (reservation) {
+      const id = reservation;
+      reservation = null;
+      try {
+        const settled = await settleScan(id, status === 200 ? 'success' : 'failed');
+        if (status === 200 && !settled) throw new Error('Scan reservation expired');
+      } catch {
+        console.error('[scan] could not settle scan reservation.');
+        if (status === 200) {
+          body = { error: 'Could not complete the scan. Please try again.' };
+          status = 503;
+          code = 'internal_error';
+        }
+      }
+      try {
+        const { remaining, resetsAt } = await getScanAllowance(identity);
+        body = { ...body, remaining, resetsAt };
+      } catch {
+        console.error('[scan] could not load the updated allowance.');
+      }
+    }
     await recordScanEvent(req, status, code);
-    return NextResponse.json(body, { status });
+    return NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
   };
   try {
     const ip =
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       req.headers.get('x-real-ip') ||
       'unknown_ip';
-    const { deviceId: serverFingerprint, ipHash } = scanIdentity(req);
-
     const developer = isAdminRequest(req);
     if (!developer && isRateLimited(ip)) {
       return respond(
@@ -287,9 +333,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json().catch(() => null);
+    const rawBody = await readScanBody(req).catch(() => '');
+    if (rawBody === null) {
+      return respond(
+        { error: 'The scan request is too large. Please use a smaller photo.' },
+        413, 'image_too_large',
+      );
+    }
+
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      body = null;
+    }
     const imageBase64 =
-      typeof body?.imageBase64 === 'string' ? body.imageBase64.trim() : '';
+      typeof body === 'object' && body !== null && 'imageBase64' in body &&
+      typeof body.imageBase64 === 'string' ? body.imageBase64.trim() : '';
 
     if (!imageBase64) {
       return respond(
@@ -298,7 +358,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (imageBase64.length > 8_000_000) {
+    if (imageBase64.length > MAX_IMAGE_CHARS) {
       return respond(
         { error: 'The receipt image is too large. Please use a smaller photo.' },
         413, 'image_too_large',
@@ -313,16 +373,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const scanLimit = developer ? { allowed: true, remaining: null } : await checkScanLimit(serverFingerprint, ipHash);
-    if (!scanLimit.allowed) {
-      return respond(
-        {
-          error: 'DAILY_LIMIT_REACHED',
-          remaining: 0,
-          message: 'Daily limit of 2 free AI scans reached.',
-        },
-        429, 'daily_limit',
-      );
+    if (!developer) {
+      reservation = await reserveScan(identity);
+      if (!reservation) {
+        const { remaining, pending, browserAttemptsExhausted, networkAttemptsExhausted, resetsAt } = await getScanAllowance(identity);
+        const allowance = { remaining, resetsAt };
+        if (remaining === 0) {
+          return respond({ ...allowance, error: 'DAILY_LIMIT_REACHED' }, 429, 'daily_limit');
+        }
+        if (pending >= remaining) {
+          return respond({ ...allowance, error: 'Another scan is still in progress. Please wait for it to finish.' }, 429, 'rate_limited');
+        }
+        const scope = browserAttemptsExhausted ? 'This browser' : networkAttemptsExhausted ? 'This network' : null;
+        return respond({
+          ...allowance,
+          error: scope
+            ? `${scope} has reached today’s scan attempt limit. Try again after midnight Malaysia time.`
+            : 'Could not reserve a scan slot. Please try again.',
+        }, 429, 'rate_limited');
+      }
     }
 
     const ai = new GoogleGenAI({ apiKey });
@@ -406,7 +475,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return respond({ ...result, remaining: scanLimit.remaining, developer }, 200, 'scan_success');
+    return respond({ ...result, developer }, 200, 'scan_success');
   } catch {
     console.error('[scan] unexpected server error.');
     return respond(

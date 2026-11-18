@@ -117,7 +117,7 @@ export default function GuestBillView({ bill }: { bill: SharedBill }) {
         <main className="w-full pb-8 pt-2">
           <div className="flex w-full flex-col gap-4 sm:gap-5">
           <section className="glass-card p-5">
-            <h2 className="text-lg font-semibold text-white">Find your name</h2>
+            <h2 className="text-lg font-semibold text-white">Find Your Name</h2>
             <p className="mb-3 mt-1 text-sm text-slate-300">Choose your name to see your share and how to pay.</p>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 w-4 h-4 -translate-y-1/2 text-slate-300" />
@@ -156,7 +156,7 @@ export default function GuestBillView({ bill }: { bill: SharedBill }) {
           {entry && (
             <section aria-label={`${selected}'s amount to pay`} aria-live="polite" className="glass-card border-blue-400/25 p-5">
               <h2 className="text-sm font-semibold text-slate-200">{selected}&apos;s share</h2>
-              <p className="mt-3 text-sm text-blue-200">Total to pay</p>
+              <p className="mt-3 text-sm text-blue-200">Total to Pay</p>
               <p className="mt-1 text-4xl font-bold tracking-tight text-white tabular-nums">{money(entry.final)}</p>
               {eq(entry.final) && <p className="mt-1 text-sm font-semibold text-blue-200">{eq(entry.final)} for DuitNow</p>}
               <p className="mt-2 text-sm text-slate-300">Includes your share of the bill&apos;s charges and rounding.</p>
@@ -288,7 +288,7 @@ export default function GuestBillView({ bill }: { bill: SharedBill }) {
               </div>
               {bill.serviceCharge > 0 && (
                 <div className="flex justify-between">
-                  <span>Service charge ({bill.serviceCharge}%)</span>
+                  <span>Service Charge ({bill.serviceCharge}%)</span>
                   <span>{money(bill.serviceAmt)}</span>
                 </div>
               )}

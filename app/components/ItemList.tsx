@@ -4,7 +4,9 @@ import { useState, type RefObject } from 'react';
 import { Check, ListChecks, Pencil, Plus, Trash2 } from 'lucide-react';
 import ItemEditor from './ItemEditor';
 import type { Item } from '../types';
-import { formatMoney, formatMyrEquivalent, type CurrencyCode } from '../lib/currency';
+import { currencyDecimalPlaces, formatMoney, formatMyrEquivalent, type CurrencyCode } from '../lib/currency';
+import { capitalizeFirstLetter } from '../lib/utils';
+import { isBillAmount } from '../lib/split';
 
 type Props = {
   items: Item[];
@@ -37,19 +39,31 @@ export default function ItemList({
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [manualName, setManualName] = useState('');
-  const [manualPrice, setManualPrice] = useState('');
+  const [manualPrice, setManualPrice] = useState<number | null>(null);
+  const decimalPlaces = currencyDecimalPlaces(currency);
+  const priceInput = manualPrice?.toFixed(decimalPlaces) ?? '';
+  const priceOutOfRange = manualPrice !== null && !isBillAmount(manualPrice);
   const unassignedCount = items.filter((item) => item.assigned.length === 0).length;
 
   const assignedCount = items.length - unassignedCount;
   const visibleItems = showUnassignedOnly ? items.filter((item) => item.assigned.length === 0) : items;
 
   const addManualItem = () => {
-    const name = manualName.trim();
-    const price = Number(manualPrice);
-    if (!name || !manualPrice.trim() || !Number.isFinite(price) || price < 0) return;
-    onAddManualItem(name, price);
+    const name = capitalizeFirstLetter(manualName.trim());
+    if (!name || !priceInput || priceOutOfRange) return;
+    onAddManualItem(name, Number(priceInput));
     setManualName('');
-    setManualPrice('');
+    setManualPrice(null);
+  };
+
+  const updateManualPrice = (value: string) => {
+    const allowed = priceInput.includes('.') ? /^\d*\.?\d*$/ : /^\d*$/;
+    if (!allowed.test(value)) return;
+    const digits = value.replace('.', '');
+    const units = Number(digits);
+    if (!Number.isSafeInteger(units)) return;
+    const isCleared = !digits || (units === 0 && value.length < priceInput.length);
+    setManualPrice(isCleared ? null : units / 10 ** decimalPlaces);
   };
 
   return (
@@ -143,9 +157,42 @@ export default function ItemList({
       )}
 
       <div className="mt-6 grid grid-cols-[minmax(0,1fr)_auto] gap-2 border-t border-white/10 pt-4">
-        <input ref={manualNameInputRef} value={manualName} onChange={(event) => setManualName(event.target.value)} aria-label="New item name" placeholder="Item name" className="glass-input col-span-2 min-w-0 text-base" />
-        <input value={manualPrice} onChange={(event) => setManualPrice(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') addManualItem(); }} aria-label="New item price" inputMode="decimal" placeholder="0.00" className="glass-input w-full text-base" />
-        <button onClick={addManualItem} aria-label="Add item" className="flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 px-3 text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-95"><Plus size={18} /></button>
+        <input
+          ref={manualNameInputRef}
+          value={manualName}
+          autoCapitalize="sentences"
+          onChange={(event) => {
+            const { value } = event.currentTarget;
+            setManualName((event.nativeEvent as InputEvent).isComposing ? value : capitalizeFirstLetter(value));
+          }}
+          onCompositionEnd={(event) => setManualName(capitalizeFirstLetter(event.currentTarget.value))}
+          aria-label="New item name"
+          placeholder="Item name"
+          className="glass-input col-span-2 min-w-0 text-base"
+        />
+        <input
+          value={priceInput}
+          onChange={(event) => updateManualPrice(event.currentTarget.value)}
+          onPaste={(event) => {
+            if (!/^\d+$/.test(event.clipboardData.getData('text'))) event.preventDefault();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') addManualItem();
+            if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !/^\d$/.test(event.key)) {
+              event.preventDefault();
+            }
+          }}
+          aria-label="New item price"
+          aria-invalid={priceOutOfRange}
+          aria-describedby="manual-item-price-hint"
+          inputMode="numeric"
+          placeholder={(0).toFixed(decimalPlaces)}
+          className="glass-input w-full text-base"
+        />
+        <button onClick={addManualItem} disabled={priceOutOfRange} aria-label="Add item" className="flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 px-3 text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-95 disabled:opacity-50"><Plus size={18} /></button>
+        <p id="manual-item-price-hint" className="col-span-2 text-xs text-slate-300">
+          {priceOutOfRange ? 'An item price can be at most 1 billion in the receipt currency.' : decimalPlaces === 0 ? 'Enter the price in whole rupiah.' : 'Enter digits only. For 12.50, type 1250.'}
+        </p>
       </div>
     </section>
   );

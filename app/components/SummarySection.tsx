@@ -37,18 +37,32 @@ export default function SummarySection({
   const eq = (n: number) => formatMyrEquivalent(n, currency, myrRate);
   const signedMoney = (n: number) =>
     `${n > 0 ? '+' : n < 0 ? '-' : ''}${money(Math.abs(n))}`;
+  const splitReady = people.length > 0 && unassignedCount === 0 && !calc.issue;
+  const heading = (
+    <h2 className="mb-3 flex items-center gap-2 text-base font-semibold tracking-tight text-white">
+      <Layers className="h-4 w-4 text-blue-400" />
+      <span>Summary</span>
+    </h2>
+  );
+
+  if (calc.issue === 'invalidAmounts') {
+    return (
+      <section className="glass-card p-5">
+        {heading}
+        <p role="status" className="rounded-2xl border border-amber-300/25 bg-amber-400/10 p-4 text-sm text-amber-100">
+          Check the bill amounts. Amounts and totals can be at most 1 billion in the receipt currency. Use 0–100% for service charge and tax, and use negative values only for rounding.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="glass-card p-5">
-      <h2 className="mb-3 flex items-center gap-2 text-base font-semibold tracking-tight text-white">
-        <Layers className="h-4 w-4 text-blue-400" />
-        <span>Summary</span>
-      </h2>
-
-      {people.length > 0 && unassignedCount === 0 && (
+      {heading}
+      {splitReady && (
         <p className="mb-2 text-sm text-slate-300">Payment marks are a manual record on this device. The app cannot verify bank transfers.</p>
       )}
-      {people.length > 0 && unassignedCount === 0 && (
+      {splitReady && (
         <div className="mb-3 flex items-center justify-between rounded-xl border border-white/10 bg-slate-950/30 px-3 py-2 text-sm text-slate-300 backdrop-blur-md">
           <span>
             Marked as paid: {money(people.reduce((total, person) =>
@@ -68,7 +82,7 @@ export default function SummarySection({
       )}
 
       <div className="mb-3 rounded-2xl border border-blue-300/20 bg-blue-500/10 p-4">
-        <p className="text-sm font-medium text-blue-100">Grand total</p>
+        <p className="text-sm font-medium text-blue-100">Grand Total</p>
         <p className="mt-1 text-3xl font-bold tracking-tight text-white tabular-nums">{money(calc.grandTotal)}</p>
         {eq(calc.grandTotal) && <p className="mt-1 text-sm text-blue-100/80">{eq(calc.grandTotal)}</p>}
       </div>
@@ -122,7 +136,11 @@ export default function SummarySection({
       </div>
 
       <div className="mt-4 space-y-3">
-        {unassignedCount > 0 ? <p role="status" className="rounded-2xl border border-amber-300/25 bg-amber-400/10 p-4 text-sm text-amber-100">Split incomplete: {unassignedCount} item(s) still need an owner. Assign every item to see final amounts and share the bill.</p> : people.length > 0 ? (
+        {calc.issue === 'zeroSubtotal' ? (
+          <p role="status" className="rounded-2xl border border-amber-300/25 bg-amber-400/10 p-4 text-sm text-amber-100">
+            This bill has a charge but a zero item subtotal. To split a charge on its own, add it as an item, assign it to the people who owe it, and remove the original charge or rounding adjustment.
+          </p>
+        ) : unassignedCount > 0 ? <p role="status" className="rounded-2xl border border-amber-300/25 bg-amber-400/10 p-4 text-sm text-amber-100">Split incomplete: {unassignedCount} item(s) still need an owner. Assign every item to see final amounts and share the bill.</p> : people.length > 0 ? (
           people.map((p) => {
             const entry = calc.perPerson[p];
             const paid = paidStatus[p] ?? false;
@@ -194,7 +212,7 @@ export default function SummarySection({
         )}
       </div>
 
-      {paymentQrCode && (
+      {paymentQrCode && !calc.issue && (
         <button
           onClick={onShowQr}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-blue-500/30 bg-blue-600/10 py-3 text-sm font-bold text-blue-300 transition hover:bg-blue-600/20 active:scale-[0.98]"

@@ -12,6 +12,9 @@ export const formatRM = (n: number) => `RM ${n.toFixed(2)}`;
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
 
+export const capitalizeFirstLetter = (value: string) =>
+  value.replace(/\p{L}/u, (letter) => letter.toUpperCase());
+
 export const uid = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()

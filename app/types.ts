@@ -1,4 +1,4 @@
-import type { CurrencyCode } from './lib/currency';
+import type { CurrencyCode, ExchangeRateSource } from './lib/currency';
 
 export type Item = {
   id: string;
@@ -11,6 +11,7 @@ export type ReceiptCharges = {
   discount?: number;
   serviceAmount?: number;
   taxAmount?: number;
+  reviewedSubtotal?: number;
 };
 
 export type ScanResponse = {
@@ -23,6 +24,7 @@ export type ScanResponse = {
   roundingAdjustment: number;
   restaurantName?: string;
   remaining?: number;
+  resetsAt?: number;
   developer?: boolean;
 };
 
@@ -36,6 +38,7 @@ export type ReceiptSnapshot = {
   roundingAdjustment?: number;
   currency?: CurrencyCode;
   myrRate?: number;
+  rateSource?: ExchangeRateSource;
 };
 
 export type HistoryEntry = {
@@ -54,6 +57,7 @@ export type PersonBreakdown = {
 };
 
 export type SplitResult = {
+  issue?: 'invalidAmounts' | 'zeroSubtotal';
   discount: number;
   subtotal: number;
   serviceCharge: number;

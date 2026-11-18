@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Plus, Users, X } from 'lucide-react';
+import { capitalizeFirstLetter } from '../lib/utils';
 
 type Props = {
   people: string[];
@@ -13,7 +14,7 @@ export default function PeopleManager({ people, onAdd, onRemove }: Props) {
   const [personInput, setPersonInput] = useState('');
 
   const addPerson = () => {
-    const name = personInput.trim();
+    const name = capitalizeFirstLetter(personInput.trim());
     if (!name) return;
     if (onAdd(name)) setPersonInput('');
   };
@@ -27,9 +28,14 @@ export default function PeopleManager({ people, onAdd, onRemove }: Props) {
       <div className="flex gap-2">
         <input
           value={personInput}
-          onChange={(e) => setPersonInput(e.target.value)}
+          autoCapitalize="sentences"
+          onChange={(e) => {
+            const { value } = e.currentTarget;
+            setPersonInput((e.nativeEvent as InputEvent).isComposing ? value : capitalizeFirstLetter(value));
+          }}
+          onCompositionEnd={(e) => setPersonInput(capitalizeFirstLetter(e.currentTarget.value))}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') addPerson();
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) addPerson();
           }}
           aria-label="Friend's name"
           placeholder="Friend's name"

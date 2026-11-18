@@ -32,12 +32,16 @@ export function getDeviceId(): string {
     window.localStorage.setItem(DEVICE_ID_KEY, id);
     document.cookie = `${DEVICE_ID_COOKIE}=${encodeURIComponent(id)}; path=/; max-age=31536000; samesite=lax`;
     return id;
-  } catch {
+  } catch {}
+
+  try {
     const cookieId = readCookie(DEVICE_ID_COOKIE);
     if (cookieId) return cookieId;
 
     const id = createDeviceId();
     document.cookie = `${DEVICE_ID_COOKIE}=${encodeURIComponent(id)}; path=/; max-age=31536000; samesite=lax`;
-    return id;
+    return readCookie(DEVICE_ID_COOKIE) ?? '';
+  } catch {
+    return '';
   }
 }

@@ -7,7 +7,7 @@ export default function Footer() {
         <summary className="flex min-h-11 cursor-pointer items-center justify-center font-semibold text-slate-100">Privacy and data use <span aria-hidden="true" className="ml-2">▾</span></summary>
         <ul className="space-y-2 pb-2">
           <li><strong>On this device:</strong> This browser saves your draft, bill history, saved payment settings, and manual payment marks.</li>
-          <li><strong>Receipt scanning:</strong> When you scan, the app sends the receipt image to its server and an AI provider (Google Gemini, with Groq as a fallback when available) to read it. Manual entry skips the photo upload.</li>
+          <li><strong>Receipt scanning:</strong> When you scan, the app sends the receipt image to its server and an AI provider (Google Gemini, with Groq as a fallback when available) to read it. The server uses a browser ID and IP address to enforce scan limits. Manual entry skips the photo upload.</li>
           <li><strong>Shared bills:</strong> Creating a link saves a copy of the breakdown and any included payment details on the server. Anyone with the link can view it for up to 72 hours.</li>
         </ul>
       </details>

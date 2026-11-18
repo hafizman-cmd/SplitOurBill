@@ -1,6 +1,16 @@
 import type { Item, PersonBreakdown, ReceiptCharges, SplitResult } from '../types';
 import { round2 } from './utils';
-import { formatMoney, type CurrencyCode } from './currency';
+import { currencyDecimalPlaces, formatMoney, formatMyrEquivalent, type CurrencyCode } from './currency';
+
+export const MAX_BILL_AMOUNT = 1_000_000_000;
+export const MAX_CHARGE_PERCENT = 100;
+
+export function isBillAmount(amount: number, signed = false): boolean {
+  return Number.isFinite(amount) && amount >= (signed ? -MAX_BILL_AMOUNT : 0) && amount <= MAX_BILL_AMOUNT;
+}
+
+const isChargePercent = (percent: number) =>
+  Number.isFinite(percent) && percent >= 0 && percent <= MAX_CHARGE_PERCENT;
 
 export function computeSplit(
   items: Item[],
@@ -9,79 +19,92 @@ export function computeSplit(
   taxPercent: number,
   roundingAdjustment = 0,
   receiptCharges?: ReceiptCharges,
+  currency: CurrencyCode = 'MYR',
 ): SplitResult {
-  const serviceCharge = Math.max(0, serviceChargePercent) || 0;
-  const tax = Math.max(0, taxPercent) || 0;
-  const rounding = Number.isFinite(roundingAdjustment) ? round2(roundingAdjustment) : 0;
+  const perPerson: Record<string, PersonBreakdown> = Object.fromEntries(
+    people.map((person) => [person, { items: [], raw: 0, final: 0 }]),
+  );
+  const invalidResult: SplitResult = {
+    issue: 'invalidAmounts', subtotal: 0, discount: 0, serviceCharge: 0, serviceAmt: 0,
+    tax: 0, taxAmt: 0, roundingAdjustment: 0, grandTotal: 0, multiplier: 0, perPerson,
+  };
 
+  if (!items.every((item) => isBillAmount(item.price))) return invalidResult;
   const subtotal = round2(items.reduce((sum, it) => sum + it.price, 0));
+  if (!isBillAmount(subtotal)) return invalidResult;
+  invalidResult.subtotal = subtotal;
+
+  if (!isChargePercent(serviceChargePercent) || !isChargePercent(taxPercent) ||
+    !isBillAmount(roundingAdjustment, true) ||
+    ![receiptCharges?.discount, receiptCharges?.serviceAmount, receiptCharges?.taxAmount]
+      .every((amount) => amount === undefined || isBillAmount(amount))) return invalidResult;
+
   const discount = Math.min(subtotal, round2(receiptCharges?.discount ?? 0));
   const discountedSubtotal = round2(subtotal - discount);
-  const serviceAmt = round2(receiptCharges?.serviceAmount ?? (discountedSubtotal * serviceCharge) / 100);
-  const taxAmt = round2(receiptCharges?.taxAmount ?? (discountedSubtotal * tax) / 100);
-  const grandTotal = Math.max(0, round2(discountedSubtotal + serviceAmt + taxAmt + rounding));
-  const multiplier = subtotal > 0 ? grandTotal / subtotal : 0;
+  const serviceAmt = round2(receiptCharges?.serviceAmount ?? (discountedSubtotal * serviceChargePercent) / 100);
+  const taxAmt = round2(receiptCharges?.taxAmount ?? (discountedSubtotal * taxPercent) / 100);
+  const rounding = round2(roundingAdjustment);
+  const total = Math.max(0, round2(discountedSubtotal + serviceAmt + taxAmt + rounding));
+  if (!isBillAmount(total)) return invalidResult;
+  const unitScale = 10 ** currencyDecimalPlaces(currency);
+  const totalUnits = Math.round(total * unitScale);
+  const grandTotal = totalUnits / unitScale;
 
-  const perPerson: Record<string, PersonBreakdown> = {};
-  for (const p of people) {
-    perPerson[p] = { items: [], raw: 0, final: 0 };
-  }
+  const result: SplitResult = {
+    subtotal, discount, serviceCharge: serviceChargePercent, serviceAmt, tax: taxPercent, taxAmt,
+    roundingAdjustment: rounding, grandTotal, multiplier: subtotal > 0 ? grandTotal / subtotal : 0, perPerson,
+  };
+  if (subtotal === 0 && totalUnits > 0) result.issue = 'zeroSubtotal';
+
+  let missingAssignment = false;
   for (const it of items) {
-    const n = it.assigned.length;
-    if (n === 0) continue;
-    const share = it.price / n;
-    for (const p of it.assigned) {
-      if (!(p in perPerson)) continue;
+    const assigned = [...new Set(it.assigned)].filter((person) => Object.hasOwn(perPerson, person));
+    if (assigned.length === 0) {
+      missingAssignment = true;
+      continue;
+    }
+    const share = it.price / assigned.length;
+    for (const p of assigned) {
       perPerson[p].items.push({
         name: it.name,
         share,
-        coSharers: it.assigned.filter((x) => x !== p),
+        coSharers: assigned.filter((x) => x !== p),
       });
       perPerson[p].raw += share;
     }
   }
+  if (missingAssignment || result.issue || totalUnits === 0) return result;
 
-  const allocations = people.map((p) => {
-    const exact = perPerson[p].raw * multiplier;
-    const cents = Math.floor(exact * 100 + 1e-6);
-    return { person: p, cents, frac: exact * 100 - cents };
+  const recipients = [...new Set(people)].map((person) => perPerson[person]).filter((entry) => entry.raw > 0);
+  if (recipients.length === 0) return result;
+  const assignedTotal = recipients.reduce((sum, entry) => sum + entry.raw, 0);
+  const allocations = recipients.map((entry) => {
+    const exact = (entry.raw / assignedTotal) * totalUnits;
+    const units = Math.floor(exact);
+    return { entry, units, fraction: exact - units };
   });
 
-  const totalCents = Math.round(grandTotal * 100);
-  let remaining =
-    totalCents - allocations.reduce((sum, a) => sum + a.cents, 0);
-
-  const byFracDesc = [...allocations].sort((a, b) => b.frac - a.frac);
-  let i = 0;
-  while (remaining > 0 && byFracDesc.length > 0) {
-    byFracDesc[i % byFracDesc.length].cents += 1;
-    remaining -= 1;
-    i += 1;
-  }
-  const byFracAsc = [...allocations].sort((a, b) => a.frac - b.frac);
-  i = 0;
-  while (remaining < 0 && byFracAsc.length > 0) {
-    byFracAsc[i % byFracAsc.length].cents -= 1;
-    remaining += 1;
-    i += 1;
-  }
-
-  for (const a of allocations) {
-    perPerson[a.person].final = a.cents / 100;
+  const remaining = totalUnits - allocations.reduce((sum, entry) => sum + entry.units, 0);
+  if (remaining > 0) {
+    allocations.sort((a, b) => b.fraction - a.fraction);
+    const unitsEach = Math.floor(remaining / allocations.length);
+    const extras = remaining % allocations.length;
+    allocations.forEach((allocation, index) => {
+      allocation.units += unitsEach + (index < extras ? 1 : 0);
+    });
+  } else if (remaining < 0) {
+    allocations.sort((a, b) => a.fraction - b.fraction);
+    let excess = -remaining;
+    for (const allocation of allocations) {
+      const reduction = Math.min(excess, allocation.units);
+      allocation.units -= reduction;
+      excess -= reduction;
+      if (excess === 0) break;
+    }
   }
 
-  return {
-    subtotal,
-    discount,
-    serviceCharge,
-    serviceAmt,
-    tax,
-    taxAmt,
-    roundingAdjustment: rounding,
-    grandTotal,
-    multiplier,
-    perPerson,
-  };
+  for (const { entry, units } of allocations) entry.final = units / unitScale;
+  return result;
 }
 
 const DIVIDER = '----------------------------------------';
@@ -112,10 +135,8 @@ export function buildShareText(
 ): string {
   const amt = (n: number) => {
     const base = formatMoney(n, currency);
-    if (currency === 'MYR' || !Number.isFinite(myrRate) || myrRate <= 0) {
-      return base;
-    }
-    return `${base} (≈ RM ${(n * myrRate).toFixed(2)})`;
+    const equivalent = formatMyrEquivalent(n, currency, myrRate);
+    return equivalent ? `${base} (${equivalent})` : base;
   };
   const lines: string[] = [];
   lines.push('Kira-Kira - Bill Split Summary');

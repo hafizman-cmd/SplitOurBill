@@ -32,7 +32,7 @@ export default function DailyScanLimitModal({
           <KiraKiraLogo className="h-12 w-12" />
           <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-semibold text-slate-300">
             <Clock size={14} className="text-blue-300" />
-            Resets at midnight
+            Midnight MYT
           </div>
         </div>
 
@@ -40,7 +40,7 @@ export default function DailyScanLimitModal({
           Daily AI Scans Used
         </h2>
         <p className="mt-3 text-sm leading-6 text-slate-300">
-          You&apos;ve used your 2 free AI receipt scans for today. Scans reset at midnight, or you can enter bill items manually for free.
+          This browser has used its 2 free AI receipt scans for today. Scans reset at midnight Malaysia time.
         </p>
 
         <div className="mt-4 flex items-center gap-2 rounded-2xl border border-blue-300/15 bg-blue-500/10 px-3 py-2.5 text-sm font-medium leading-5 text-blue-100">

@@ -1,5 +1,5 @@
 import type { HistoryEntry, Item, ReceiptCharges, ReceiptSnapshot } from '../types';
-import { CURRENCIES, type CurrencyCode } from './currency';
+import { CURRENCIES, isExchangeRateSource, parseMyrRate, type CurrencyCode, type ExchangeRateSource } from './currency';
 
 export type BillDraft = {
   version: 1;
@@ -15,6 +15,7 @@ export type BillDraft = {
   roundingAdjustmentInput: string;
   currency: CurrencyCode;
   rateInput: string;
+  rateSource?: ExchangeRateSource;
 };
 
 const record = (value: unknown): value is Record<string, unknown> =>
@@ -25,7 +26,7 @@ const finite = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value);
 const validReceiptCharges = (value: unknown): boolean =>
   value === undefined || (record(value) && !Array.isArray(value) &&
-    ['discount', 'serviceAmount', 'taxAmount'].every((key) =>
+    ['discount', 'serviceAmount', 'taxAmount', 'reviewedSubtotal'].every((key) =>
       value[key] === undefined || (finite(value[key]) && value[key] >= 0)));
 
 const currencyCode = (value: unknown): value is CurrencyCode =>
@@ -46,7 +47,7 @@ export function parseBillDraft(raw: string): BillDraft | null {
       !items(value.items) || !strings(value.people) || !paidStatus(value.paidStatus) ||
       !validReceiptCharges(value.receiptCharges) || !currencyCode(value.currency) ||
       !['serviceChargeInput', 'taxInput', 'roundingAdjustmentInput', 'rateInput'].every((key) => typeof value[key] === 'string')) return null;
-    return value as BillDraft;
+    return { ...value, rateSource: isExchangeRateSource(value.rateSource) ? value.rateSource : undefined } as BillDraft;
   } catch {
     return null;
   }
@@ -71,10 +72,11 @@ export function snapshotFromDraft(draft: BillDraft): ReceiptSnapshot {
     receiptCharges: draft.receiptCharges,
     people: draft.people,
     paidStatus: draft.paidStatus,
-    serviceCharge: Math.max(0, Number(draft.serviceChargeInput) || 0),
-    tax: Math.max(0, Number(draft.taxInput) || 0),
-    roundingAdjustment: Number(draft.roundingAdjustmentInput) || 0,
+    serviceCharge: Number(draft.serviceChargeInput),
+    tax: Number(draft.taxInput),
+    roundingAdjustment: Number(draft.roundingAdjustmentInput),
     currency: draft.currency,
-    myrRate: draft.currency === 'MYR' ? 1 : Math.max(0, Number(draft.rateInput) || 0),
+    myrRate: draft.currency === 'MYR' ? 1 : parseMyrRate(draft.rateInput),
+    rateSource: draft.rateSource,
   };
 }

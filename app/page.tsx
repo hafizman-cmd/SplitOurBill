@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowRight, Save, Share2 } from 'lucide-react';
+import { ArrowRight, ChevronDown, Save, Share2 } from 'lucide-react';
 import type { HistoryEntry, Item, ReceiptCharges, ScanResponse, SplitResult } from './types';
 import {
   HISTORY_STORAGE_KEY,
@@ -11,11 +11,12 @@ import {
   STORAGE_KEY,
   compressImage,
   loadHistoryFromStorage,
+  round2,
   uid,
 } from './lib/utils';
 import { buildShareText, computeSplit } from './lib/split';
 import type { SharedBill } from './lib/sharedBill';
-import { CURRENCIES, type CurrencyCode } from './lib/currency';
+import { CURRENCIES, isExchangeRateSource, parseMyrRate, parseReferenceRate, type CurrencyCode, type ExchangeRateSource } from './lib/currency';
 import Header from './components/Header';
 import ConfirmModal from './components/ConfirmModal';
 import { parseBillDraft, snapshotFromDraft, type BillDraft } from './lib/billStorage';
@@ -25,6 +26,7 @@ import ReceiptScanner from './components/ReceiptScanner';
 import PeopleManager from './components/PeopleManager';
 import ItemList from './components/ItemList';
 import ChargesSection from './components/ChargesSection';
+import ReceiptChargesModal from './components/ReceiptChargesModal';
 import SummarySection from './components/SummarySection';
 import SettingsModal from './components/SettingsModal';
 import ShareModal from './components/ShareModal';
@@ -35,6 +37,7 @@ import CameraModal from './components/CameraModal';
 import Footer from './components/Footer';
 import Toast from './components/Toast';
 import { getSessionId, logEvent } from '@/lib/telemetry';
+import { getDeviceId } from '@/lib/device';
 import DailyScanLimitModal from './components/DailyScanLimitModal';
 import InstallChoiceModal from './components/InstallChoiceModal';
 
@@ -63,13 +66,16 @@ export default function Home() {
 
   const [serviceChargeInput, setServiceChargeInput] = useState('0');
   const [receiptCharges, setReceiptCharges] = useState<ReceiptCharges>();
+  const [receiptChargesOpen, setReceiptChargesOpen] = useState(false);
   const [taxInput, setTaxInput] = useState('0');
   const [roundingAdjustmentInput, setRoundingAdjustmentInput] = useState('0');
 
   const [currency, setCurrency] = useState<CurrencyCode>('MYR');
   const [rateInput, setRateInput] = useState('');
+  const [rateSource, setRateSource] = useState<ExchangeRateSource>();
   const [fetchingRate, setFetchingRate] = useState(false);
-  const myrRate = currency === 'MYR' ? 1 : Math.max(0, Number(rateInput) || 0);
+  const rateRequest = useRef<AbortController | null>(null);
+  const myrRate = currency === 'MYR' ? 1 : parseMyrRate(rateInput);
 
   const [pendingScan, setPendingScan] = useState<{ scan: ReviewedScan; image: string } | null>(null);
   const [showUnassignedOnly, setShowUnassignedOnly] = useState(false);
@@ -77,6 +83,7 @@ export default function Home() {
   const scannerSectionRef = useRef<HTMLDivElement>(null);
   const peopleSectionRef = useRef<HTMLDivElement>(null);
   const reviewSectionRef = useRef<HTMLDivElement>(null);
+  const billGuideRef = useRef<HTMLDivElement>(null);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [cropImage, setCropImage] = useState<string | null>(null);
@@ -94,14 +101,28 @@ export default function Home() {
   useEffect(() => {
     if (scanning) return;
     let active = true;
+    let resetTimer: ReturnType<typeof setTimeout> | undefined;
     const refreshScanStatus = async () => {
       const version = ++scanStatusVersion.current;
       try {
-        const response = await fetch('/api/scan', { cache: 'no-store' });
+        const response = await fetch('/api/scan', {
+          cache: 'no-store',
+          headers: { 'x-scan-browser': getDeviceId() },
+        });
         if (!response.ok) return;
-        const data: { remaining?: unknown } = await response.json();
-        if (active && version === scanStatusVersion.current && typeof data.remaining === 'number') {
+        const data: Pick<ScanResponse, 'remaining' | 'resetsAt'> = await response.json();
+        if (!active || version !== scanStatusVersion.current) return;
+        if (typeof data.remaining === 'number') {
           setScansRemaining(Math.max(0, data.remaining));
+          if (data.remaining > 0) setDailyLimitOpen(false);
+        }
+        if (typeof data.resetsAt === 'number' && Number.isFinite(data.resetsAt)) {
+          clearTimeout(resetTimer);
+          resetTimer = setTimeout(() => {
+            setScansRemaining(null);
+            setDailyLimitOpen(false);
+            void refreshScanStatus();
+          }, Math.min(86_400_000, Math.max(1000, data.resetsAt - Date.now() + 250)));
         }
       } catch {}
     };
@@ -112,6 +133,7 @@ export default function Home() {
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       active = false;
+      clearTimeout(resetTimer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [developerMode, scanning]);
@@ -152,6 +174,7 @@ export default function Home() {
           setRoundingAdjustmentInput(restored.roundingAdjustmentInput);
           setCurrency(restored.currency);
           setRateInput(restored.rateInput);
+          setRateSource(restored.rateSource);
           setActiveHistoryId(restored.historyId);
           showToast('Your last bill was restored from this device.');
         } else {
@@ -181,8 +204,10 @@ export default function Home() {
     roundingAdjustmentInput,
     currency,
     rateInput,
-  }), [receiptCharges, activeHistoryId, restaurantName, billDate, items, people, paidStatus, serviceChargeInput, taxInput, roundingAdjustmentInput, currency, rateInput]);
+    rateSource,
+  }), [receiptCharges, activeHistoryId, restaurantName, billDate, items, people, paidStatus, serviceChargeInput, taxInput, roundingAdjustmentInput, currency, rateInput, rateSource]);
   const hasCurrentBill = items.length > 0 || people.length > 0 || restaurantName.trim() !== '' ||
+    receiptCharges?.discount !== undefined || receiptCharges?.serviceAmount !== undefined || receiptCharges?.taxAmount !== undefined ||
     serviceChargeInput !== '0' || taxInput !== '0' || roundingAdjustmentInput !== '0' || currency !== 'MYR';
 
   useEffect(() => {
@@ -191,15 +216,18 @@ export default function Home() {
       window.localStorage.setItem(ACTIVE_BILL_STORAGE_KEY, JSON.stringify(draft));
       if (draft.historyId && history.some((entry) => entry.id === draft.historyId)) {
         const snapshot = snapshotFromDraft(draft);
-        const next = history.map((entry) => entry.id === draft.historyId ? {
-          ...entry,
-          restaurantName: draft.restaurantName.trim() || 'Untitled bill',
-          grandTotal: computeSplit(snapshot.items, snapshot.people, snapshot.serviceCharge, snapshot.tax, snapshot.roundingAdjustment, snapshot.receiptCharges).grandTotal,
-          itemsCount: snapshot.items.length,
-          receiptData: snapshot,
-        } : entry);
-        window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next));
-        if (JSON.stringify(next) !== JSON.stringify(history)) setHistory(next);
+        const result = computeSplit(snapshot.items, snapshot.people, snapshot.serviceCharge, snapshot.tax, snapshot.roundingAdjustment, snapshot.receiptCharges, snapshot.currency);
+        if (result.issue !== 'invalidAmounts') {
+          const next = history.map((entry) => entry.id === draft.historyId ? {
+            ...entry,
+            restaurantName: draft.restaurantName.trim() || 'Untitled bill',
+            grandTotal: result.grandTotal,
+            itemsCount: snapshot.items.length,
+            receiptData: snapshot,
+          } : entry);
+          window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next));
+          if (JSON.stringify(next) !== JSON.stringify(history)) setHistory(next);
+        }
       }
       setSaveState('saved');
     } catch {
@@ -235,12 +263,6 @@ export default function Home() {
   };
 
   const scanReceipt = async (imageDataUrl: string) => {
-    if (scansRemaining === 0 && !developerMode) {
-      setCropImage(null);
-      setDailyLimitOpen(true);
-      return;
-    }
-
     scanStatusVersion.current += 1;
     setCropImage(null);
     setScanning(true);
@@ -253,6 +275,7 @@ export default function Home() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-scan-browser': getDeviceId(),
           'x-telemetry-session': getSessionId() ?? '',
         },
         body: JSON.stringify({ imageBase64: imageDataUrl }),
@@ -264,6 +287,9 @@ export default function Home() {
         .json()
         .catch(() => null as ScanResponse | null);
 
+      if (typeof data?.remaining === 'number') {
+        setScansRemaining(Math.max(0, data.remaining));
+      }
       if (!res.ok) {
         if (
           res.status === 429 &&
@@ -285,9 +311,6 @@ export default function Home() {
       }
       if (!data || !Array.isArray(data.items)) {
         throw new Error('Received an invalid response from the scanner.');
-      }
-      if (typeof data.remaining === 'number') {
-        setScansRemaining(Math.max(0, data.remaining));
       }
       setDeveloperMode(data.developer === true);
 
@@ -344,14 +367,18 @@ export default function Home() {
 
   const confirmScan = (scan: ReviewedScan) => {
     const nextItems = [...items, ...scan.items];
+    const reviewedCharges = scan.receiptCharges && {
+      ...scan.receiptCharges,
+      reviewedSubtotal: round2(scan.items.reduce((sum, item) => sum + item.price, 0)),
+    };
     setItems(nextItems);
     setServiceChargeInput(String(scan.serviceCharge));
     setTaxInput(String(scan.tax));
-    setReceiptCharges(scan.receiptCharges);
+    setReceiptCharges(reviewedCharges);
     setRoundingAdjustmentInput(String(scan.roundingAdjustment));
     setRestaurantName(scan.restaurantName);
     setBillDate(new Date().toISOString());
-    saveHistory(scan.restaurantName || 'Receipt', nextItems, scan.serviceCharge, scan.tax, scan.roundingAdjustment, scan.receiptCharges);
+    saveHistory(scan.restaurantName || 'Receipt', nextItems, scan.serviceCharge, scan.tax, scan.roundingAdjustment, reviewedCharges);
     setPendingScan(null);
     setShowUnassignedOnly(false);
     showToast(`Added ${scan.items.length} reviewed item(s). Assign who shared each one.`);
@@ -375,16 +402,22 @@ export default function Home() {
       roundingAdjustment,
       receiptCharges,
       currency,
-      myrRate: currency === 'MYR' ? 1 : myrRate,
+      myrRate,
+      rateSource,
     };
-    const { grandTotal } = computeSplit(
+    const { grandTotal, issue } = computeSplit(
       snapshotItems,
       people,
       serviceCharge,
       tax,
       roundingAdjustment,
       receiptCharges,
+      currency,
     );
+    if (issue === 'invalidAmounts') {
+      showToast('Correct the amounts in the Summary before saving to History.');
+      return false;
+    }
     const nowIso = new Date().toISOString();
     const entry: HistoryEntry = {
       id: activeHistoryId ?? uid(),
@@ -410,8 +443,7 @@ export default function Home() {
 
   const saveCurrentBill = () => saveHistory(
     restaurantName.trim() || 'Untitled bill', items,
-    Math.max(0, Number(serviceChargeInput) || 0),
-    Math.max(0, Number(taxInput) || 0), Number(roundingAdjustmentInput) || 0, receiptCharges,
+    Number(serviceChargeInput), Number(taxInput), Number(roundingAdjustmentInput), receiptCharges,
   );
 
   const requestHistoryEntry = (entry: HistoryEntry) => {
@@ -427,6 +459,7 @@ export default function Home() {
 
   const loadHistoryEntry = (entry: HistoryEntry) => {
     const snap = entry.receiptData;
+    cancelRateRequest();
     setHistory((current) => [entry, ...current.filter((saved) => saved.id !== entry.id)].slice(0, 20));
     setActiveHistoryId(entry.id);
     setShowUnassignedOnly(false);
@@ -448,11 +481,16 @@ export default function Home() {
         ? String(snap.myrRate ?? CURRENCIES[snap.currency].defaultRate)
         : '',
     );
+    const savedRateSource = isExchangeRateSource(snap.rateSource) ? snap.rateSource : undefined;
+    setRateSource(snap.currency && snap.currency !== 'MYR' && snap.myrRate === undefined
+      ? { kind: 'estimate' }
+      : savedRateSource);
     setHistoryOpen(false);
     showToast(`Loaded ${entry.restaurantName} from history`);
   };
 
   const startNewBill = () => {
+    cancelRateRequest();
     setActiveHistoryId(null);
     setItems([]);
     setPeople([]);
@@ -465,6 +503,7 @@ export default function Home() {
     setRoundingAdjustmentInput('0');
     setCurrency('MYR');
     setRateInput('');
+    setRateSource(undefined);
     setShowUnassignedOnly(false);
     setScanError(null);
     showToast('New bill started. Your previous bill is in History.');
@@ -546,7 +585,8 @@ export default function Home() {
     setItems((current) => current.map((item) => item.id === id ? { ...item, assigned: [...people] } : item));
   };
 
-  const unassignedCount = items.filter((item) => item.assigned.length === 0).length;
+  const peopleSet = new Set(people);
+  const unassignedCount = items.filter((item) => !item.assigned.some((person) => peopleSet.has(person))).length;
 
   const currentStep = items.length === 0 ? 0 : people.length === 0 ? 1 : unassignedCount > 0 ? 2 : 3;
 
@@ -554,9 +594,14 @@ export default function Home() {
     if (step === 2) setShowUnassignedOnly(unassignedCount > 0);
     const section = [scannerSectionRef, peopleSectionRef, itemsSectionRef, reviewSectionRef][step]?.current;
     if (!section) return;
+    const guide = billGuideRef.current;
+    if (guide) {
+      const stickyTop = Number.parseFloat(window.getComputedStyle(guide).top);
+      section.style.scrollMarginTop = `${stickyTop + guide.getBoundingClientRect().height + 12}px`;
+    }
     section.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
     const target = step === 1 ? section.querySelector('input') : step === 0 ? section.querySelector<HTMLButtonElement>('button[aria-label="Take a receipt photo"]') : section;
-    target?.focus({ preventScroll: true });
+    (target?.matches(':enabled') ? target : section).focus({ preventScroll: true });
   };
 
   const toggleAssignment = (itemId: string, person: string) => {
@@ -574,30 +619,52 @@ export default function Home() {
     );
   };
 
+  const cancelRateRequest = () => {
+    rateRequest.current?.abort();
+    rateRequest.current = null;
+    setFetchingRate(false);
+  };
+
   const handleCurrencyChange = (code: CurrencyCode) => {
+    cancelRateRequest();
     setCurrency(code);
     setRateInput(code === 'MYR' ? '' : String(CURRENCIES[code].defaultRate));
+    setRateSource(code === 'MYR' ? undefined : { kind: 'estimate' });
+  };
+
+  const handleRateChange = (value: string) => {
+    cancelRateRequest();
+    setRateInput(value);
+    setRateSource({ kind: 'manual' });
   };
 
   const fetchExchangeRate = async () => {
-    if (currency === 'MYR' || fetchingRate) return;
+    if (currency === 'MYR' || rateRequest.current) return;
+    const request = new AbortController();
+    rateRequest.current = request;
+    const timeout = setTimeout(() => request.abort(), 8000);
     setFetchingRate(true);
     try {
       const res = await fetch(
-        `https://api.frankfurter.app/latest?from=${currency}&to=MYR`,
+        `https://api.frankfurter.dev/v2/rate/${currency.toLowerCase()}/myr`,
+        { signal: request.signal },
       );
       if (!res.ok) throw new Error('bad status');
-      const data: unknown = await res.json();
-      const rate = Number(
-        (data as { rates?: { MYR?: number } } | null)?.rates?.MYR,
-      );
-      if (!Number.isFinite(rate) || rate <= 0) throw new Error('bad rate');
-      setRateInput(String(Math.round(rate * 100000) / 100000));
-      showToast('Exchange rate updated');
+      const referenceRate = parseReferenceRate(await res.json(), currency);
+      if (!referenceRate) throw new Error('bad rate');
+      if (rateRequest.current !== request) return;
+      setRateInput(String(referenceRate.rate));
+      setRateSource({ kind: 'frankfurter', date: referenceRate.date });
     } catch {
-      showToast('Could not fetch the exchange rate. Please enter it manually.');
+      if (rateRequest.current === request) {
+        showToast('Could not refresh the exchange rate. Try again or enter a rate manually.');
+      }
     } finally {
-      setFetchingRate(false);
+      clearTimeout(timeout);
+      if (rateRequest.current === request) {
+        rateRequest.current = null;
+        setFetchingRate(false);
+      }
     }
   };
 
@@ -616,16 +683,20 @@ export default function Home() {
       computeSplit(
         items,
         people,
-        Math.max(0, Number(serviceChargeInput) || 0),
-        Math.max(0, Number(taxInput) || 0),
-        Number(roundingAdjustmentInput) || 0,
+        Number(serviceChargeInput),
+        Number(taxInput),
+        Number(roundingAdjustmentInput),
         receiptCharges,
+        currency,
       ),
-    [items, people, serviceChargeInput, taxInput, roundingAdjustmentInput, receiptCharges],
+    [items, people, serviceChargeInput, taxInput, roundingAdjustmentInput, receiptCharges, currency],
   );
+  const receiptChargesNeedReview = Boolean(receiptCharges &&
+    (receiptCharges.discount !== undefined || receiptCharges.serviceAmount !== undefined || receiptCharges.taxAmount !== undefined) &&
+    receiptCharges.reviewedSubtotal !== calc.subtotal);
 
   const openShareModal = async () => {
-    if (creatingShare) return;
+    if (creatingShare || calc.issue) return;
     logEvent('share_summary_tapped');
     if (items.length === 0 || people.length === 0) {
       showToast('Add items and people first.');
@@ -634,10 +705,11 @@ export default function Home() {
     if (unassignedCount > 0) {
       setShowUnassignedOnly(true);
       showToast(`Assign the remaining ${unassignedCount} item(s) before sharing.`);
-      requestAnimationFrame(() => {
-        itemsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        itemsSectionRef.current?.focus({ preventScroll: true });
-      });
+      requestAnimationFrame(() => selectStep(2));
+      return;
+    }
+    if (receiptChargesNeedReview) {
+      setReceiptChargesOpen(true);
       return;
     }
     const sharedBill: SharedBill = {
@@ -729,22 +801,30 @@ export default function Home() {
         />
 
         <main aria-busy={!storageReady} className="space-y-5 px-4 pb-28 pt-3">
-          <section aria-label="Bill saving" className="glass-card space-y-3 p-4">
-            <p role="status" aria-live="polite" className={`text-base font-semibold ${saveState === 'error' ? 'text-amber-200' : 'text-slate-100'}`}>
-              {saveState === 'loading' ? 'Opening your saved bill...' : saveState === 'error' ? 'Bill not saved. Keep this tab open.' : hasCurrentBill ? 'Current bill saved on this device' : 'Ready for a new bill'}
-            </p>
-            <p className="text-sm leading-relaxed text-slate-300">
-              {saveState === 'error' ? 'Browser storage is unavailable or full. Free up space or allow site storage, then retry saving.' : 'Changes save automatically. Reopen this app in the same browser to continue. Clearing site data removes saved bills.'}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" disabled={!storageReady || !hasCurrentBill} onClick={() => { if (saveCurrentBill()) showToast('Saved to History. Further changes will update this bill.'); }} className="flex min-h-11 items-center gap-2 rounded-xl border border-blue-400/40 bg-blue-500/15 px-3 text-sm font-semibold text-blue-100 disabled:opacity-50"><Save size={18} />{saveState === 'error' ? 'Retry saving' : activeHistoryId ? 'Save bill' : 'Save to History'}</button>
-              <button type="button" disabled={!storageReady || !hasCurrentBill || scanning} onClick={() => setPendingAction({ type: 'new' })} className="min-h-11 rounded-xl border border-white/20 px-3 text-sm font-semibold text-slate-200 disabled:opacity-50">New bill</button>
+          <details className="glass-card group">
+            <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl px-4 py-2 text-sm [&::-webkit-details-marker]:hidden">
+              <span className="font-semibold">Bill Actions</span>
+              <span role="status" className={`min-w-0 flex-1 text-right text-xs ${saveState === 'error' ? 'font-semibold text-amber-200' : 'text-slate-300'}`}>
+                {saveState === 'loading' ? 'Opening saved bill…' : saveState === 'error' ? 'Bill not saved. Keep this tab open.' : hasCurrentBill ? 'Saved on this device' : 'Ready for a new bill'}
+              </span>
+              <ChevronDown aria-hidden="true" size={16} className="shrink-0 text-slate-300 transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="space-y-3 border-t border-white/10 px-4 pb-4 pt-3">
+              <p className="text-sm leading-relaxed text-slate-300">
+                {saveState === 'error' ? 'Browser storage is unavailable or full. Free up space or allow site storage, then retry saving.' : 'Changes save automatically. Reopen this app in the same browser to continue. Clearing site data removes saved bills.'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" disabled={!storageReady || !hasCurrentBill} onClick={() => { if (saveCurrentBill()) showToast('Saved to History. Further changes will update this bill.'); }} className="flex min-h-11 items-center gap-2 rounded-xl border border-blue-400/40 bg-blue-500/15 px-3 text-sm font-semibold text-blue-100 disabled:opacity-50"><Save size={18} />{saveState === 'error' ? 'Retry Saving' : activeHistoryId ? 'Save Bill' : 'Save to History'}</button>
+                <button type="button" disabled={!storageReady || !hasCurrentBill || scanning} onClick={() => setPendingAction({ type: 'new' })} className="min-h-11 rounded-xl border border-white/20 px-3 text-sm font-semibold text-slate-200 disabled:opacity-50">New Bill</button>
+              </div>
+              {activeHistoryId && <p className="text-sm text-slate-300">This bill is also in History. Its saved copy updates as you edit.</p>}
             </div>
-            {activeHistoryId && <p className="text-sm text-slate-300">This bill is also in History. Its saved copy updates as you edit.</p>}
-          </section>
-          <BillFlowGuide currentStep={currentStep} hasItems={items.length > 0} hasPeople={people.length > 0} unassignedCount={unassignedCount} onSelectStep={selectStep} />
+          </details>
+          <div ref={billGuideRef} className="sticky top-[calc(max(0.75rem,env(safe-area-inset-top))+74px)] z-40 !mt-3 sm:top-[calc(max(0.75rem,env(safe-area-inset-top))+78px)]">
+            <BillFlowGuide currentStep={currentStep} hasItems={items.length > 0} hasPeople={people.length > 0} unassignedCount={unassignedCount} onSelectStep={selectStep} />
+          </div>
 
-          <div ref={scannerSectionRef} tabIndex={-1} aria-label="Scan or add items" className="scroll-mt-28 rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+          <div ref={scannerSectionRef} tabIndex={-1} aria-label="Scan or Add Items" className="scroll-mt-28 rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
             <ReceiptScanner
               scanning={scanning}
               scanError={scanError}
@@ -757,7 +837,7 @@ export default function Home() {
             <button type="button" onClick={() => { setShowUnassignedOnly(false); requestAnimationFrame(() => manualNameInputRef.current?.focus()); }} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/15 text-sm font-semibold text-slate-200 hover:bg-white/5">Enter items manually <ArrowRight size={16} /></button>
           </div>
 
-          <div ref={peopleSectionRef} tabIndex={-1} aria-label="Add people" className="scroll-mt-28 rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+          <div ref={peopleSectionRef} tabIndex={-1} aria-label="Add People" className="scroll-mt-28 rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
             <PeopleManager
               people={people}
               onAdd={addPerson}
@@ -788,6 +868,8 @@ export default function Home() {
               taxInput={taxInput}
               roundingAdjustmentInput={roundingAdjustmentInput}
               receiptCharges={receiptCharges}
+              receiptChargesNeedReview={receiptChargesNeedReview}
+              onReviewReceiptCharges={() => setReceiptChargesOpen(true)}
               onServiceChargeChange={(value) => {
                 setServiceChargeInput(value);
                 setReceiptCharges((current) => current && { ...current, serviceAmount: undefined });
@@ -800,7 +882,8 @@ export default function Home() {
               currency={currency}
               onCurrencyChange={handleCurrencyChange}
               rateInput={rateInput}
-              onRateChange={setRateInput}
+              rateSource={rateSource}
+              onRateChange={handleRateChange}
               onFetchRate={() => void fetchExchangeRate()}
               fetchingRate={fetchingRate}
             />
@@ -822,13 +905,13 @@ export default function Home() {
 
         <button
           type="button"
-          onClick={() => currentStep === 3 ? void openShareModal() : selectStep(currentStep)}
+          onClick={() => currentStep === 3 && !calc.issue ? void openShareModal() : selectStep(currentStep)}
           disabled={currentStep === 3 && creatingShare}
           aria-busy={currentStep === 3 && creatingShare}
           className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 z-50 flex h-11 -translate-x-1/2 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-blue-400/30 bg-gradient-to-r from-blue-700 to-blue-600 px-7 text-sm font-semibold text-white shadow-xl shadow-blue-500/35 backdrop-blur-md transition-all active:scale-95"
         >
-          {currentStep === 3 ? <Share2 size={16} /> : <ArrowRight size={16} />}
-          {['Scan or add items', 'Add people', `Assign ${unassignedCount} item${unassignedCount === 1 ? '' : 's'}`, creatingShare ? 'Creating link…' : 'Share Summary'][currentStep]}
+          {currentStep === 3 && !calc.issue ? <Share2 size={16} /> : <ArrowRight size={16} />}
+          {['Scan or Add Items', 'Add People', `Assign ${unassignedCount} Item${unassignedCount === 1 ? '' : 's'}`, calc.issue ? 'Review Split' : creatingShare ? 'Creating link…' : 'Share Summary'][currentStep]}
         </button>
 
         <Footer />
@@ -840,6 +923,17 @@ export default function Home() {
           existingItems={items}
           onConfirm={confirmScan}
           onClose={() => setPendingScan(null)}
+        />}
+
+        {receiptChargesOpen && <ReceiptChargesModal
+          charges={receiptCharges ?? {}}
+          subtotal={calc.subtotal}
+          currency={currency}
+          onSave={(charges) => {
+            setReceiptCharges(charges);
+            setReceiptChargesOpen(false);
+          }}
+          onClose={() => setReceiptChargesOpen(false)}
         />}
 
         <SettingsModal
@@ -906,7 +1000,7 @@ export default function Home() {
         {pendingAction && <ConfirmModal
           title={pendingAction.type === 'clear' ? 'Clear saved history?' : pendingAction.type === 'load' ? `Load ${pendingAction.entry.restaurantName}?` : 'Start a new bill?'}
           description={pendingAction.type === 'clear' ? 'All bills in History will be removed from this browser. Your current bill will stay open and saved as a draft. This cannot be undone.' : pendingAction.type === 'load' ? 'Loading this saved bill replaces the bill on screen. Your current bill will be saved to History first, so you can return to it.' : 'Your current bill will be saved to History before a new, empty bill opens.'}
-          confirmLabel={pendingAction.type === 'clear' ? 'Clear History' : pendingAction.type === 'load' ? 'Save & load bill' : 'Save & start new'}
+          confirmLabel={pendingAction.type === 'clear' ? 'Clear History' : pendingAction.type === 'load' ? 'Save & Load Bill' : 'Save & Start New'}
           error={pendingAction.type !== 'clear' && saveState === 'error' ? 'Could not save your current bill. Free up browser storage and try again. Your current bill is still open.' : undefined}
           onConfirm={confirmPendingAction}
           onClose={() => setPendingAction(null)}

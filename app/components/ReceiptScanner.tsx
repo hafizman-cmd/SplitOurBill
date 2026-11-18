@@ -136,6 +136,7 @@ export default function ReceiptScanner({
       </div>
 
       <p className="mt-3 text-sm text-slate-300">Scanning sends the receipt photo to an AI provider. You can enter items manually instead.</p>
+      {!developerMode && <p className="mt-1 text-sm text-slate-300">2 free successful scans per browser each day. Resets at midnight Malaysia time.</p>}
 
       {scanning && (
         <div role="status" className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-blue-500/30 bg-blue-600/10 px-4 py-3 text-sm font-semibold text-blue-300">
