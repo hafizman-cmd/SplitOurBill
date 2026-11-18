@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import Modal from '../components/Modal';
 import { useSearchParams } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -26,7 +27,7 @@ export default function ViewPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center px-4">
-          <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-6 py-4 text-xs font-semibold text-slate-400 shadow-sm backdrop-blur-md">
+          <div className="rounded-2xl border border-slate-200/70 bg-slate-900 px-6 py-4 text-sm font-semibold text-slate-200 shadow-sm backdrop-blur-md">
             Opening shared bill...
           </div>
         </div>
@@ -60,15 +61,6 @@ function GuestBillView() {
       logEvent('app_open');
     }
   }, []);
-
-  useEffect(() => {
-    if (!qrExpanded) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setQrExpanded(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [qrExpanded]);
 
   useEffect(() => {
     return () => {
@@ -141,7 +133,7 @@ function GuestBillView() {
   if (bill === undefined) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
-        <div className="rounded-2xl border border-slate-200/70 bg-white/80 px-6 py-4 text-xs font-semibold text-slate-400 shadow-sm backdrop-blur-md">
+        <div className="rounded-2xl border border-slate-200/70 bg-slate-900 px-6 py-4 text-sm font-semibold text-slate-200 shadow-sm backdrop-blur-md">
           Opening shared bill...
         </div>
       </div>
@@ -155,13 +147,13 @@ function GuestBillView() {
           <h1 className="text-base font-bold text-white">
             This link can&apos;t be opened
           </h1>
-          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+          <p className="mt-2 text-sm leading-relaxed text-slate-300">
             The shared bill link looks incomplete or corrupted. Ask your host
             to share it again.
           </p>
           <Link
             href="/"
-            className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-2.5 text-xs font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-95"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-95"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             Go to Kira-Kira
@@ -177,9 +169,9 @@ function GuestBillView() {
         <header className="glass-nav sticky top-3 z-50 my-3 flex w-full items-center gap-3 px-4 py-3 text-white">
           <KiraKiraLogo className="h-10 w-10" />
           <div className="min-w-0">
-            <p className="text-[11px] font-bold tracking-tight text-white">Kira-Kira</p>
-            <h1 className="truncate text-[15px] font-bold leading-tight tracking-tight">{bill.restaurantName}</h1>
-            <p className="mt-0.5 truncate text-[10px] font-medium tracking-wide text-slate-400">
+            <p className="text-sm font-bold tracking-tight text-white">Kira-Kira</p>
+            <h1 className="truncate text-lg font-bold leading-tight tracking-tight">{bill.restaurantName}</h1>
+            <p className="mt-0.5 truncate text-sm font-medium tracking-wide text-slate-300">
               {dateLabel ? `${dateLabel} - ` : ''}Shared by your host
             </p>
           </div>
@@ -191,13 +183,13 @@ function GuestBillView() {
             <h2 className="text-lg font-semibold text-white">Find your name</h2>
             <p className="mb-3 mt-1 text-sm text-slate-300">Choose your name to see your share and how to pay.</p>
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 w-4 h-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 w-4 h-4 -translate-y-1/2 text-slate-300" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search your name"
                 aria-label="Search your name"
-                className="glass-input w-full rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none transition"
+                className="glass-input w-full rounded-xl py-2.5 pl-10 pr-4 text-base outline-none transition"
               />
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -217,7 +209,7 @@ function GuestBillView() {
                 </button>
               ))}
               {filteredPeople.length === 0 && (
-                <p className="text-xs text-slate-400">
+                <p className="text-sm text-slate-300">
                   No matching name. Check with your host.
                 </p>
               )}
@@ -240,7 +232,7 @@ function GuestBillView() {
               <section className="glass-card p-5">
               <div className="mb-3 flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-300">
+                <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-300">
                   Settle via DuitNow
                 </h2>
               </div>
@@ -252,14 +244,14 @@ function GuestBillView() {
                   aria-label="Enlarge DuitNow QR code"
                   className="mb-3 flex w-full flex-col items-center rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm backdrop-blur-md transition hover:border-white/20 active:scale-[0.98]"
                 >
-                  <span className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                  <span className="mb-2 flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-slate-300">
                     <QrCode className="w-4 h-4" />
                     Scan to pay via DuitNow
                   </span>
                   <span className="rounded-xl bg-white p-3 ring-1 ring-slate-200/70">
                     <QRCodeSVG value={bill.qrPayload} size={180} />
                   </span>
-                  <span className="mt-2 text-[10px] font-medium text-slate-400">
+                  <span className="mt-2 text-sm font-medium text-slate-300">
                     Tap to enlarge
                   </span>
                 </button>
@@ -293,8 +285,8 @@ function GuestBillView() {
 
             {entry && !bill.bankDetails.trim() && !bill.qrPayload && <p className="glass-card p-5 text-sm text-slate-300">Your host hasn&apos;t added payment details. Ask them how to transfer your share.</p>}
 
-            <div className="flex items-start justify-center gap-1.5 px-4 text-center text-[11px] text-slate-400 opacity-75">
-              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <div className="flex items-start justify-center gap-1.5 px-4 text-center text-sm text-slate-300">
+              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-300" />
               <span>
                 Kira-Kira is a bill calculation tool and does not process payments
                 directly. All fund transfers are executed securely within your
@@ -306,7 +298,7 @@ function GuestBillView() {
           {entry && (
             <section className="glass-card p-5">
               <details>
-                <summary className="cursor-pointer text-sm font-semibold text-slate-200">{selected}&apos;s item breakdown ({entry.items.length})</summary>
+                <summary className="cursor-pointer min-h-11 py-3 text-base font-semibold text-slate-200">{selected}&apos;s item breakdown ({entry.items.length})</summary>
               <div className="mt-2 space-y-1.5">
                 {entry.items.length > 0 ? (
                   entry.items.map((it, i) => (
@@ -321,12 +313,12 @@ function GuestBillView() {
                     </div>
                   ))
                 ) : (
-                  <p className="text-xs text-slate-400">
+                  <p className="text-sm text-slate-300">
                     No items assigned to this person.
                   </p>
                 )}
               </div>
-                <p className="mt-3 border-t border-white/10 pt-3 text-xs text-slate-400">Item shares are shown before charges and rounding. The total to pay above includes these extras.</p>
+                <p className="mt-3 border-t border-white/10 pt-3 text-sm text-slate-300">Item shares are shown before charges and rounding. The total to pay above includes these extras.</p>
               </details>
               <button
                 type="button"
@@ -340,19 +332,19 @@ function GuestBillView() {
           )}
 
           <details className="glass-card p-5">
-            <summary className="cursor-pointer text-sm font-semibold text-slate-200">View full bill details</summary>
-            <h2 className="mt-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
+            <summary className="cursor-pointer min-h-11 py-3 text-base font-semibold text-slate-200">View full bill details</summary>
+            <h2 className="mt-4 text-sm font-bold uppercase tracking-[0.12em] text-slate-300">
               Bill Total
             </h2>
             <p className="mt-1 text-3xl font-bold text-white">
               {money(bill.grandTotal)}
             </p>
             {eq(bill.grandTotal) && (
-              <p className="mt-0.5 text-xs font-medium text-slate-400">
+              <p className="mt-0.5 text-sm font-medium text-slate-300">
                 {eq(bill.grandTotal)} for DuitNow
               </p>
             )}
-            <div className="mt-3 space-y-1 border-t border-white/10 pt-3 text-xs text-slate-300">
+            <div className="mt-3 space-y-1 border-t border-white/10 pt-3 text-sm text-slate-300">
               <div className="flex justify-between">
                 <span>Subtotal</span>
                 <span>{money(bill.subtotal)}</span>
@@ -385,7 +377,7 @@ function GuestBillView() {
             </div>
           </details>
 
-          <p className="pt-1 text-center text-[11px] text-slate-400">
+          <p className="pt-1 text-center text-sm text-slate-300">
             Read-only view shared via Kira-Kira
           </p>
           </div>
@@ -394,7 +386,7 @@ function GuestBillView() {
         <footer className="px-4 pb-6 pt-2 text-center">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400 transition hover:text-blue-400"
+            className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-slate-300 transition hover:text-blue-400"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             Split your own bill with Kira-Kira
@@ -402,11 +394,9 @@ function GuestBillView() {
         </footer>
 
         {qrExpanded && bill.qrPayload && (
-          <div
+          <Modal onClose={() => setQrExpanded(false)}
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-6 backdrop-blur-sm"
             onClick={() => setQrExpanded(false)}
-            role="dialog"
-            aria-modal="true"
             aria-label="DuitNow QR code"
           >
             <div
@@ -416,19 +406,19 @@ function GuestBillView() {
               <div className="mx-auto w-fit rounded-2xl bg-white p-4 ring-1 ring-slate-200">
                 <QRCodeSVG value={bill.qrPayload} size={240} className="h-auto w-full max-w-[240px]" />
               </div>
-              <p className="mt-4 text-center text-xs font-medium leading-relaxed text-slate-500">
+              <p className="mt-4 text-center text-sm font-medium leading-relaxed text-slate-300">
                 Scan with your banking app to pay
                 {settlementAmount ? ` ${settlementAmount}` : ''}
               </p>
               <button
                 type="button"
                 onClick={() => setQrExpanded(false)}
-                className="mt-4 w-full rounded-xl bg-slate-100 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 active:scale-[0.98]"
+                className="mt-4 w-full rounded-xl bg-slate-100 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-200 active:scale-[0.98]"
               >
                 Close
               </button>
             </div>
-          </div>
+          </Modal>
         )}
       </div>
     </div>
@@ -473,7 +463,7 @@ function CopyButton({
         )
       ) : (
         <>
-          <Copy className="w-4 h-4 text-slate-400" />
+          <Copy className="w-4 h-4 text-slate-300" />
           {label}
         </>
       )}

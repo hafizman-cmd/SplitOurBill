@@ -1,5 +1,6 @@
 import jsQR from 'jsqr';
 import type { HistoryEntry } from '../types';
+import { isHistoryEntry } from './billStorage';
 
 export const STORAGE_KEY = 'kira-kira.bank-details';
 export const QR_STORAGE_KEY = 'kira-kira.payment-qr-code';
@@ -116,20 +117,7 @@ export function loadHistoryFromStorage(): HistoryEntry[] {
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((e): e is HistoryEntry => {
-      if (typeof e !== 'object' || e === null) return false;
-      const entry = e as Record<string, unknown>;
-      return (
-        typeof entry.id === 'string' &&
-        typeof entry.date === 'string' &&
-        typeof entry.restaurantName === 'string' &&
-        typeof entry.grandTotal === 'number' &&
-        typeof entry.itemsCount === 'number' &&
-        typeof entry.receiptData === 'object' &&
-        entry.receiptData !== null &&
-        Array.isArray((entry.receiptData as Record<string, unknown>).items)
-      );
-    });
+    return parsed.filter(isHistoryEntry);
   } catch {
     return [];
   }

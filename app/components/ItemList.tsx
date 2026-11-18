@@ -60,7 +60,7 @@ export default function ItemList({
           Items
         </h2>
         {unassignedCount > 0 && (
-          <span className="shrink-0 rounded-full border border-blue-500/30 bg-blue-600/10 px-2.5 py-1 text-[10px] font-bold tracking-wide text-blue-300">
+          <span className="shrink-0 rounded-full border border-blue-500/30 bg-blue-600/10 px-2.5 py-1 text-sm font-bold tracking-wide text-blue-300">
             {unassignedCount} to assign
           </span>
         )}
@@ -104,11 +104,11 @@ export default function ItemList({
                     <div className="min-w-0 flex-1">
                       <p className="text-lg font-bold leading-tight tracking-tight text-white sm:text-xl">{formatMoney(item.price, currency)}</p>
                       {formatMyrEquivalent(item.price, currency, myrRate) && (
-                        <p className="mt-1 text-[11px] font-semibold text-blue-300/80">{formatMyrEquivalent(item.price, currency, myrRate)}</p>
+                        <p className="mt-1 text-sm font-semibold text-blue-300/80">{formatMyrEquivalent(item.price, currency, myrRate)}</p>
                       )}
                     </div>
                     <button type="button" onClick={() => setEditingId(item.id)} aria-label={`Edit ${item.name}`} className="-mt-1 flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/10"><Pencil size={16} /></button>
-                    <button type="button" onClick={() => onRemoveItem(item.id)} aria-label={`Remove ${item.name}`} className="-mt-1 flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-500 transition hover:bg-rose-400/10 hover:text-rose-200 active:scale-95">
+                    <button type="button" onClick={() => onRemoveItem(item.id)} aria-label={`Remove ${item.name}`} className="-mt-1 flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-300 transition hover:bg-rose-400/10 hover:text-rose-200 active:scale-95">
                       <Trash2 size={15} />
                     </button>
                   </div>
@@ -126,13 +126,13 @@ export default function ItemList({
                         onClick={() => onToggleAssignment(item.id, person)}
                         aria-pressed={assigned}
                         aria-label={`${person}, ${assigned ? "assigned" : "not assigned"} to ${item.name}`}
-                        className={`flex min-h-11 items-center gap-2 rounded-full border px-2.5 text-sm font-semibold transition active:scale-95 ${assigned ? 'border-blue-400/40 bg-blue-500/20 text-blue-100 shadow-md shadow-blue-950/30' : 'border-white/10 bg-white/5 text-slate-400 hover:border-blue-500/30 hover:bg-white/10 hover:text-white'}`}
+                        className={`flex min-h-11 items-center gap-2 rounded-full border px-2.5 text-sm font-semibold transition active:scale-95 ${assigned ? 'border-blue-400/40 bg-blue-500/20 text-blue-100 shadow-md shadow-blue-950/30' : 'border-white/10 bg-white/5 text-slate-300 hover:border-blue-500/30 hover:bg-white/10 hover:text-white'}`}
                       >
-                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${assigned ? "bg-blue-400 text-slate-950" : "bg-white/10 text-slate-300"}`}>{assigned ? <Check size={14} strokeWidth={2.6} /> : person.charAt(0).toUpperCase()}</span>
+                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sm ${assigned ? "bg-blue-400 text-slate-950" : "bg-white/10 text-slate-300"}`}>{assigned ? <Check size={14} strokeWidth={2.6} /> : person.charAt(0).toUpperCase()}</span>
                         {person}
                       </button>
                     );
-                  }) : <p className="text-xs text-slate-300">Add people above, then select who shared each item.</p>}
+                  }) : <p className="text-sm text-slate-300">Add people above, then select who shared each item.</p>}
                 </div>
               </li>
             );
@@ -142,10 +142,10 @@ export default function ItemList({
         <div className="rounded-xl border border-dashed border-white/20 bg-white/[0.03] p-6 text-center text-sm font-medium text-slate-300">No items yet. Scan a receipt or add an item below.</div>
       )}
 
-      <div className="mt-6 grid grid-cols-[minmax(0,1fr)_5.75rem_auto] gap-2 border-t border-white/10 pt-4">
-        <input ref={manualNameInputRef} value={manualName} onChange={(event) => setManualName(event.target.value)} aria-label="New item name" placeholder="Item name" className="glass-input min-w-0 text-sm" />
-        <input value={manualPrice} onChange={(event) => setManualPrice(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') addManualItem(); }} aria-label="New item price" inputMode="decimal" placeholder="0.00" className="glass-input w-full text-sm" />
-        <button onClick={addManualItem} aria-label="Add item" className="flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-3 text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-95"><Plus size={18} /></button>
+      <div className="mt-6 grid grid-cols-[minmax(0,1fr)_auto] gap-2 border-t border-white/10 pt-4">
+        <input ref={manualNameInputRef} value={manualName} onChange={(event) => setManualName(event.target.value)} aria-label="New item name" placeholder="Item name" className="glass-input col-span-2 min-w-0 text-base" />
+        <input value={manualPrice} onChange={(event) => setManualPrice(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') addManualItem(); }} aria-label="New item price" inputMode="decimal" placeholder="0.00" className="glass-input w-full text-base" />
+        <button onClick={addManualItem} aria-label="Add item" className="flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 px-3 text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-95"><Plus size={18} /></button>
       </div>
     </section>
   );

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import Modal from './Modal';
 import Image from 'next/image';
 import { Plus, Trash2, X } from 'lucide-react';
 import type { Item } from '../types';
@@ -31,46 +32,14 @@ export default function ScanReviewModal({ scan, image, currency, existingItems, 
   const [serviceCharge, setServiceCharge] = useState(String(scan.serviceCharge));
   const [tax, setTax] = useState(String(scan.tax));
   const [rounding, setRounding] = useState(String(scan.roundingAdjustment));
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-
-  useEffect(() => {
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    dialogRef.current?.focus();
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeRef.current();
-      if (event.key !== 'Tab') return;
-      const elements = dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), summary, [tabindex="0"]');
-      if (!elements?.length) return;
-      const first = elements[0];
-      const last = elements[elements.length - 1];
-      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current)) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', handleKey);
-      previousFocus?.focus();
-    };
-  }, []);
-
   const validNumber = (value: string, allowNegative = false) => value.trim() !== '' && Number.isFinite(Number(value)) && (allowNegative || Number(value) >= 0);
   const valid = items.length > 0 && items.every((item) => item.name.trim() && validNumber(item.price)) && validNumber(serviceCharge) && validNumber(tax) && validNumber(rounding, true);
   const reviewedItems = items.map((item) => ({ ...item, name: item.name.trim(), price: Math.round(Number(item.price) * 100) / 100 }));
   const totals = valid ? computeSplit([...existingItems, ...reviewedItems], [], Number(serviceCharge), Number(tax), Number(rounding)) : null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-3 backdrop-blur-md sm:p-6" onClick={onClose}>
-      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="scan-review-title" aria-describedby="scan-review-description" onClick={(event) => event.stopPropagation()} className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-white/15 bg-slate-950 text-slate-100 shadow-2xl outline-none">
+    <Modal onClose={onClose} aria-labelledby="scan-review-title" aria-describedby="scan-review-description" className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-3 backdrop-blur-md sm:p-6" onClick={onClose}>
+      <div onClick={(event) => event.stopPropagation()} className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-white/15 bg-slate-950 text-slate-100 shadow-2xl outline-none">
         <div className="flex items-start justify-between gap-3 border-b border-white/10 p-5">
           <div>
             <h2 id="scan-review-title" className="text-xl font-semibold">Review your receipt</h2>
@@ -130,6 +99,6 @@ export default function ScanReviewModal({ scan, image, currency, existingItems, 
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import Modal from './Modal';
+
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Code2, Loader2, Upload } from 'lucide-react';
 
@@ -34,15 +36,6 @@ export default function ReceiptScanner({
       .then((data) => onDeveloperModeChange(data.authenticated === true))
       .catch(() => undefined);
   }, [onDeveloperModeChange]);
-
-  useEffect(() => {
-    if (!unlockOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setUnlockOpen(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [unlockOpen]);
 
   const unlock = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -102,14 +95,14 @@ export default function ReceiptScanner({
         <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight text-white">
           <Camera className="h-4 w-4 text-blue-400" /> Receipt Scanner
         </h2>
-        <button type="button" role="switch" aria-checked={developerMode} aria-label="Developer mode" onClick={() => void toggleDeveloperMode()} disabled={switchingOff || scanning} className="flex items-center gap-1.5 rounded-lg p-1.5 text-xs text-slate-400 hover:bg-white/10 disabled:opacity-60">
+        <button type="button" role="switch" aria-checked={developerMode} aria-label="Developer mode" onClick={() => void toggleDeveloperMode()} disabled={switchingOff || scanning} className="flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm text-slate-300 hover:bg-white/10 disabled:opacity-60">
           <Code2 size={16} />
           <span className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${developerMode ? 'bg-blue-600' : 'bg-slate-600'}`}>
             <span className={`absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${developerMode ? 'translate-x-4' : 'translate-x-0'}`} />
           </span>
         </button>
       </div>
-      <p className="mb-4 text-sm leading-relaxed text-slate-300">Capture your receipt and we?ll find the items for you.</p>
+      <p className="mb-4 text-sm leading-relaxed text-slate-300">Capture your receipt and we will find the items for you.</p>
 
       <input
         ref={fileInputRef}
@@ -126,7 +119,7 @@ export default function ReceiptScanner({
           aria-label="Take a receipt photo"
           onClick={onOpenCamera}
           disabled={scanning}
-          className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-3.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 py-3.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Camera size={18} />
           Take Photo
@@ -143,21 +136,21 @@ export default function ReceiptScanner({
       </div>
 
       {scanning && (
-        <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-blue-500/30 bg-blue-600/10 px-4 py-3 text-sm font-semibold text-blue-300">
+        <div role="status" className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-blue-500/30 bg-blue-600/10 px-4 py-3 text-sm font-semibold text-blue-300">
           <Loader2 size={16} className="animate-spin" />
           Scanning Receipt
         </div>
       )}
 
       {scanError && (
-        <p className="mt-3 rounded-xl border border-rose-300/15 bg-rose-400/10 px-3 py-2 text-xs font-medium text-rose-100">
+        <p role="alert" className="mt-3 rounded-xl border border-rose-300/15 bg-rose-400/10 px-3 py-2 text-sm font-medium text-rose-100">
           {scanError}
         </p>
       )}
-      {toggleError && <p role="alert" className="mt-3 text-xs text-rose-300">{toggleError}</p>}
+      {toggleError && <p role="alert" className="mt-3 text-sm text-rose-300">{toggleError}</p>}
     </section>
       {unlockOpen && (
-        <div role="dialog" aria-modal="true" aria-labelledby="developer-unlock-title" onClick={() => setUnlockOpen(false)} className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/65 px-5 py-6 backdrop-blur-md">
+        <Modal onClose={() => setUnlockOpen(false)} aria-labelledby="developer-unlock-title" onClick={() => setUnlockOpen(false)} className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/65 px-5 py-6 backdrop-blur-md">
           <div onClick={(event) => event.stopPropagation()} className="my-auto w-full max-w-sm rounded-3xl border border-white/15 bg-[#111217] p-6 shadow-2xl">
             <h2 id="developer-unlock-title" className="text-xl font-semibold text-white">Developer access</h2>
             <p className="mt-2 text-sm text-rose-300">Enter the admin password again to turn developer mode on and bypass the daily scan limit.</p>
@@ -172,7 +165,7 @@ export default function ReceiptScanner({
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
     </>
   );

@@ -20,7 +20,7 @@ export default function PeopleManager({ people, onAdd, onRemove }: Props) {
 
   return (
     <section className="glass-card p-5">
-      <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+      <h2 className="mb-3 flex items-center gap-2 text-base font-semibold tracking-tight text-white">
         <Users className="h-4 w-4 text-blue-400" />
           People
       </h2>
@@ -31,13 +31,14 @@ export default function PeopleManager({ people, onAdd, onRemove }: Props) {
           onKeyDown={(e) => {
             if (e.key === 'Enter') addPerson();
           }}
+          aria-label="Friend's name"
           placeholder="Friend's name"
-          className="glass-input min-w-0 flex-1 rounded-xl px-4 py-2.5 text-sm outline-none transition"
+          className="glass-input min-w-0 flex-1 rounded-xl px-4 py-2.5 text-base outline-none transition"
         />
         <button
           onClick={addPerson}
           aria-label="Add person"
-          className="flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 text-white shadow-lg shadow-blue-500/25 transition active:scale-95 hover:brightness-110"
+          className="flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 px-4 text-white shadow-lg shadow-blue-500/25 transition active:scale-95 hover:brightness-110"
         >
           <Plus size={18} />
         </button>
@@ -47,13 +48,13 @@ export default function PeopleManager({ people, onAdd, onRemove }: Props) {
           {people.map((p) => (
             <span
               key={p}
-              className="flex items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-600/15 py-1.5 pl-3 pr-1.5 text-xs font-semibold text-blue-300"
+              className="flex items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-600/15 py-0.5 pl-3 pr-0.5 text-base font-semibold text-blue-200"
             >
               {p}
               <button
                 onClick={() => onRemove(p)}
                 aria-label={`Remove ${p}`}
-                className="flex h-5 w-5 items-center justify-center rounded-full bg-white/10 text-slate-300 transition hover:bg-white/20 active:scale-90"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-slate-300 transition hover:bg-white/20 active:scale-90"
               >
                 <X size={12} />
               </button>
@@ -61,7 +62,7 @@ export default function PeopleManager({ people, onAdd, onRemove }: Props) {
           ))}
         </div>
       ) : (
-        <p className="mt-3 text-xs text-slate-400">
+        <p className="mt-3 text-sm text-slate-300">
           Add everyone sharing the bill so items can be assigned.
         </p>
       )}

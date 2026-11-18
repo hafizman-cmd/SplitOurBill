@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import Modal from './Modal';
+
 import { Download, X } from 'lucide-react';
 
 type Props = {
@@ -16,23 +17,12 @@ export default function PaymentQrModal({
   bankDetails,
   onClose,
 }: Props) {
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
-
   if (!open || !qrCode) return null;
 
   return (
-    <div
+    <Modal onClose={onClose}
       className="sheet-overlay"
       onClick={onClose}
-      role="dialog"
-      aria-modal="true"
       aria-label="Payment QR code"
     >
       <div
@@ -41,7 +31,7 @@ export default function PaymentQrModal({
       >
         <div aria-hidden="true" className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/30 sm:hidden" />
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-bold text-white">Scan to Pay</h3>
+          <h3 className="text-lg font-bold text-white">Scan to Pay</h3>
           <button
             onClick={onClose}
             aria-label="Close QR code view"
@@ -58,7 +48,7 @@ export default function PaymentQrModal({
           />
         </div>
         {bankDetails && (
-          <p className="mt-3 whitespace-pre-wrap text-center text-xs font-medium text-slate-300">
+          <p className="mt-3 whitespace-pre-wrap text-center text-sm font-medium text-slate-300">
             {bankDetails}
           </p>
         )}
@@ -66,7 +56,7 @@ export default function PaymentQrModal({
           <a
             href={qrCode}
             download="kira-kira-payment-qr.jpg"
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-[0.98]"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-[0.98]"
           >
             <Download size={16} />
             Download
@@ -79,6 +69,6 @@ export default function PaymentQrModal({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

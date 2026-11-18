@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import Modal from './Modal';
+
 import { AlertCircle, Clock, PlusCircle } from 'lucide-react';
 import { KiraKiraLogo } from './ui/logo';
 
@@ -15,21 +16,10 @@ export default function DailyScanLimitModal({
   onClose,
   onEnterManually,
 }: Props) {
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose, open]);
-
   if (!open) return null;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
+    <Modal onClose={onClose}
       aria-labelledby="daily-scan-limit-title"
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/65 px-5 backdrop-blur-md"
       onClick={onClose}
@@ -40,7 +30,7 @@ export default function DailyScanLimitModal({
       >
         <div className="flex items-start justify-between gap-4">
           <KiraKiraLogo className="h-12 w-12" />
-          <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-300">
+          <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-semibold text-slate-300">
             <Clock size={14} className="text-blue-300" />
             Resets at midnight
           </div>
@@ -53,7 +43,7 @@ export default function DailyScanLimitModal({
           You&apos;ve used your 2 free AI receipt scans for today. Scans reset at midnight, or you can enter bill items manually for free.
         </p>
 
-        <div className="mt-4 flex items-center gap-2 rounded-2xl border border-blue-300/15 bg-blue-500/10 px-3 py-2.5 text-xs font-medium leading-5 text-blue-100">
+        <div className="mt-4 flex items-center gap-2 rounded-2xl border border-blue-300/15 bg-blue-500/10 px-3 py-2.5 text-sm font-medium leading-5 text-blue-100">
           <AlertCircle size={16} className="shrink-0 text-[#007AFF]" />
           Manual entries remain available at any time.
         </div>
@@ -62,7 +52,7 @@ export default function DailyScanLimitModal({
           <button
             type="button"
             onClick={onEnterManually}
-            className="flex items-center justify-center gap-2 rounded-xl bg-[#007AFF] px-3 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:bg-blue-500 active:scale-[0.98]"
+            className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:bg-blue-500 active:scale-[0.98]"
           >
             <PlusCircle size={17} />
             Enter Manually
@@ -76,6 +66,6 @@ export default function DailyScanLimitModal({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

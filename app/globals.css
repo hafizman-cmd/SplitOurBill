@@ -53,10 +53,26 @@
 
   button,
   input,
-  select {
+  select,
+  textarea,
+  a,
+  summary {
     -webkit-tap-highlight-color: transparent;
   }
 
+  button,
+  summary {
+    min-height: 44px;
+  }
+
+  button {
+    min-width: 44px;
+  }
+
+  select option {
+    background: #0f172a;
+    color: #f8fafc;
+  }
 
 }
 
@@ -76,7 +92,23 @@
   }
 
   .glass-input {
-    @apply rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-white placeholder:text-slate-500 transition-all focus:border-blue-500/50 focus:outline-none;
+    @apply min-h-11 rounded-xl border border-white/25 bg-white/5 px-4 py-2.5 text-base text-white placeholder:text-slate-400 transition-all focus:border-blue-300 focus:outline-none;
+  }
+}
+
+:is(button, a, input, select, textarea, summary, [tabindex]):focus-visible:not([role='dialog']) {
+  outline: 3px solid #93c5fd;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

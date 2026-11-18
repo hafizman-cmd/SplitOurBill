@@ -1,5 +1,7 @@
 'use client';
 
+import Modal from './Modal';
+
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import ReactCrop, { type PercentCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
@@ -67,15 +69,6 @@ export default function CameraModal({
   const [torchOn, setTorchOn] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -256,10 +249,8 @@ export default function CameraModal({
   };
 
   return (
-    <div
+    <Modal onClose={onClose}
       className="fixed inset-0 z-50 flex flex-col bg-slate-950"
-      role="dialog"
-      aria-modal="true"
       aria-label="Camera receipt scanner"
     >
       <div className="flex items-center justify-between border-b border-white/10 bg-slate-900/90 px-4 pb-3 pt-4 backdrop-blur-xl">
@@ -269,14 +260,14 @@ export default function CameraModal({
           ) : (
             <Camera className="h-5 w-5 text-[#007AFF]" />
           )}
-          <h3 className="text-base font-bold text-white">
+          <h3 className="text-lg font-bold text-white">
             {inReview ? 'Adjust & Crop' : 'Scan Receipt'}
           </h3>
         </div>
         <button
           onClick={onClose}
           aria-label="Close camera scanner"
-          className="rounded-full border border-white/10 bg-white/10 p-2 text-slate-200 backdrop-blur-xl transition hover:bg-white/20 active:bg-white/25"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-white/10 bg-white/10 p-2 text-slate-200 backdrop-blur-xl transition hover:bg-white/20 active:bg-white/25"
         >
           <X className="h-5 w-5" />
         </button>
@@ -315,7 +306,7 @@ export default function CameraModal({
               <button
                 type="button"
                 onClick={() => setAttempt((a) => a + 1)}
-                className="flex items-center justify-center gap-2 rounded-xl bg-[#007AFF] py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#007AFF]/30 transition hover:brightness-110 active:scale-[0.98]"
+                className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#007AFF]/30 transition hover:brightness-110 active:scale-[0.98]"
               >
                 <RefreshCw className="h-4 w-4" />
                 Try Again
@@ -346,7 +337,7 @@ export default function CameraModal({
 
       {inReview ? (
         <>
-          <p className="px-4 pb-2 pt-3 text-center text-xs font-medium text-slate-300">
+          <p className="px-4 pb-2 pt-3 text-center text-sm font-medium text-slate-300">
             Drag the corner handles to crop the receipt, rotate it upright, or
             retake the photo.
           </p>
@@ -377,7 +368,7 @@ export default function CameraModal({
               type="button"
               onClick={handleUsePhoto}
               disabled={busy}
-              className="flex h-12 items-center justify-center gap-2 rounded-full bg-[#007AFF] px-6 text-sm font-semibold text-white shadow-lg shadow-[#007AFF]/30 transition hover:brightness-110 active:scale-95 disabled:opacity-40"
+              className="flex h-12 items-center justify-center gap-2 rounded-full bg-blue-600 px-6 text-sm font-semibold text-white shadow-lg shadow-[#007AFF]/30 transition hover:brightness-110 active:scale-95 disabled:opacity-40"
             >
               {busy ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -390,7 +381,7 @@ export default function CameraModal({
         </>
       ) : !cameraError ? (
         <>
-          <p className="px-4 pb-2 pt-3 text-center text-xs font-medium text-slate-300">
+          <p className="px-4 pb-2 pt-3 text-center text-sm font-medium text-slate-300">
             Align the receipt inside the frame, then tap Take Photo.
           </p>
           <div className="flex items-center justify-center gap-8 px-4 pb-8 pt-2">
@@ -414,7 +405,7 @@ export default function CameraModal({
               type="button"
               onClick={handleTakePhoto}
               aria-label="Take photo"
-              className="flex h-14 items-center justify-center gap-2 rounded-full bg-[#007AFF] px-8 text-sm font-semibold text-white shadow-lg shadow-[#007AFF]/30 transition hover:brightness-110 active:scale-95"
+              className="flex h-14 items-center justify-center gap-2 rounded-full bg-blue-600 px-8 text-sm font-semibold text-white shadow-lg shadow-[#007AFF]/30 transition hover:brightness-110 active:scale-95"
             >
               <Camera className="h-5 w-5" />
               Take Photo
@@ -436,6 +427,6 @@ export default function CameraModal({
           e.currentTarget.value = '';
         }}
       />
-    </div>
+    </Modal>
   );
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import Modal from './Modal';
+
 import { useEffect, useRef, useState } from 'react';
 import { Check, Crop, Loader2, X } from 'lucide-react';
 
@@ -44,15 +46,6 @@ export default function CropModal({
   const [rect, setRect] = useState<Rect>(DEFAULT_RECT);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [processing, setProcessing] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
 
   useEffect(() => {
     if (open) {
@@ -203,11 +196,9 @@ export default function CropModal({
   };
 
   return (
-    <div
+    <Modal onClose={onClose}
       className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-4 backdrop-blur-sm sm:items-center"
       onClick={onClose}
-      role="dialog"
-      aria-modal="true"
       aria-label="Crop receipt"
     >
       <div
@@ -217,18 +208,18 @@ export default function CropModal({
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Crop size={18} className="text-blue-400" />
-            <h3 className="text-base font-bold text-white">Crop Receipt</h3>
+            <h3 className="text-lg font-bold text-white">Crop Receipt</h3>
           </div>
           <button
             onClick={onClose}
             aria-label="Close cropper"
-            className="rounded-full p-2 text-slate-300 transition hover:bg-white/10 hover:text-white"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 text-slate-300 transition hover:bg-white/10 hover:text-white"
           >
             <X size={18} />
           </button>
         </div>
 
-        <p className="mb-3 text-xs leading-relaxed text-slate-300">
+        <p className="mb-3 text-sm leading-relaxed text-slate-300">
           Drag the corners to trim the photo down to the receipt text, or drag on
           the image to select a new area.
         </p>
@@ -293,7 +284,7 @@ export default function CropModal({
             type="button"
             onClick={handleCrop}
             disabled={processing}
-            className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {processing ? (
               <Loader2 size={16} className="animate-spin" />
@@ -304,6 +295,6 @@ export default function CropModal({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

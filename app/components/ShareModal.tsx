@@ -1,5 +1,7 @@
 'use client';
 
+import Modal from './Modal';
+
 import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, Link, MessageCircle, Share2, X } from 'lucide-react';
 
@@ -26,12 +28,7 @@ export default function ShareModal({
   useEffect(() => {
     if (!open) return;
     setCopied(null);
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
+  }, [open]);
 
   useEffect(() => {
     return () => {
@@ -82,11 +79,9 @@ export default function ShareModal({
     typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 
   return (
-    <div
+    <Modal onClose={onClose}
       className="sheet-overlay"
       onClick={onClose}
-      role="dialog"
-      aria-modal="true"
       aria-label="Share bill"
     >
       <div
@@ -95,7 +90,7 @@ export default function ShareModal({
       >
         <div aria-hidden="true" className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/30 sm:hidden" />
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-bold text-white">Share Bill</h3>
+          <h3 className="text-lg font-bold text-white">Share Bill</h3>
           <button
             onClick={onClose}
             aria-label="Close share"
@@ -104,7 +99,7 @@ export default function ShareModal({
             <X size={18} />
           </button>
         </div>
-        <p className="mb-4 text-xs leading-relaxed text-slate-300">
+        <p className="mb-4 text-sm leading-relaxed text-slate-300">
           Anyone with this link can view the full breakdown and settle via
           DuitNow - no account needed.
         </p>
@@ -112,7 +107,7 @@ export default function ShareModal({
         <div className="mb-4 max-h-28 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-md">
           <div className="flex items-start gap-2">
             <Link className="mt-0.5 w-4 h-4 shrink-0 text-blue-500" />
-            <p className="min-w-0 break-all font-mono text-[11px] leading-relaxed text-slate-300">
+            <p className="min-w-0 break-all font-mono text-sm leading-relaxed text-slate-300">
               {url}
             </p>
           </div>
@@ -122,7 +117,7 @@ export default function ShareModal({
           <button
             type="button"
             onClick={() => void copyValue('link', url, 'Interactive link copied')}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-3 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-[0.98]"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 py-3 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-[0.98]"
           >
             {copied === 'link' ? (
               <Check className="w-4 h-4" />
@@ -164,6 +159,6 @@ export default function ShareModal({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import Modal from './Modal';
+
 import { useEffect, useState } from 'react';
 import { Loader2, Trash2, Upload, X } from 'lucide-react';
 import { compressImage, readQrPayload, readQrPayloadFromFile } from '../lib/utils';
@@ -41,15 +43,6 @@ export default function SettingsModal({
     }
   }, [open, initialBankDetails, initialQrCode, initialQrPayload]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
-
   if (!open) return null;
 
   const save = () => {
@@ -88,11 +81,9 @@ export default function SettingsModal({
   };
 
   return (
-    <div
+    <Modal onClose={onClose}
       className="sheet-overlay"
       onClick={onClose}
-      role="dialog"
-      aria-modal="true"
       aria-label="Payment settings"
     >
       <div
@@ -101,7 +92,7 @@ export default function SettingsModal({
       >
         <div aria-hidden="true" className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/30 sm:hidden" />
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-bold text-white">
+          <h3 className="text-lg font-bold text-white">
             Payment Details
           </h3>
           <button
@@ -112,10 +103,11 @@ export default function SettingsModal({
             <X size={18} />
           </button>
         </div>
-        <p className="mb-2 text-xs leading-relaxed text-slate-300">
+        <p className="mb-2 text-sm leading-relaxed text-slate-300">
           Saved on this device and included when you share the summary.
         </p>
         <textarea
+          aria-label="Bank and DuitNow payment details"
           value={settingsDraft}
           onChange={(e) => setSettingsDraft(e.target.value)}
           rows={4}
@@ -124,7 +116,7 @@ export default function SettingsModal({
         />
 
         <div className="mt-5">
-          <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-300">
+          <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-300">
             DuitNow / Bank QR Code
           </h4>
           <input
@@ -132,6 +124,7 @@ export default function SettingsModal({
             type="file"
             accept="image/*"
             className="hidden"
+            aria-label="Upload payment QR code image"
             disabled={qrProcessing}
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -149,19 +142,19 @@ export default function SettingsModal({
               <div className="min-w-0 flex-1">
                 {settingsQrPayloadDraft ? (
                   <>
-                    <p className="text-xs font-semibold text-slate-700">
+                    <p className="text-sm font-semibold text-slate-700">
                       DuitNow QR decoded
                     </p>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-sm text-slate-600">
                       Included in interactive links once saved.
                     </p>
                   </>
                 ) : (
                   <>
-                    <p className="text-xs font-semibold text-slate-700">
+                    <p className="text-sm font-semibold text-slate-700">
                       QR image ready
                     </p>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-sm text-slate-600">
                       No payment QR decoded — shown at the table only.
                     </p>
                   </>
@@ -173,16 +166,16 @@ export default function SettingsModal({
                   setSettingsQrPayloadDraft('');
                 }}
                 aria-label="Remove QR code"
-                className="flex shrink-0 items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold text-rose-600 transition hover:bg-rose-100 active:scale-95"
+                className="flex min-h-11 shrink-0 items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-sm font-semibold text-rose-600 transition hover:bg-rose-100 active:scale-95"
               >
                 <Trash2 size={12} />
                 Remove
               </button>
             </div>
           ) : (
-            <label htmlFor="qr-code-input" className="block cursor-pointer">
+            <button type="button" disabled={qrProcessing} onClick={() => document.getElementById('qr-code-input')?.click()} className="block w-full rounded-xl disabled:opacity-60">
               <div
-                className={`flex items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-3.5 text-xs font-semibold transition ${
+                className={`flex items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-3.5 text-sm font-semibold transition ${
                   qrProcessing
                     ? 'border-blue-500/40 bg-blue-600/20 text-blue-400'
                     : 'border-blue-500/30 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20'
@@ -200,7 +193,7 @@ export default function SettingsModal({
                   </>
                 )}
               </div>
-            </label>
+            </button>
           )}
         </div>
 
@@ -213,12 +206,13 @@ export default function SettingsModal({
           </button>
           <button
             onClick={save}
-            className="flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-[0.98]"
+            disabled={qrProcessing}
+            className="flex-1 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition hover:brightness-110 active:scale-[0.98]"
           >
             Save
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import Modal from './Modal';
+
 import { Receipt, Trash2, X } from 'lucide-react';
 import type { HistoryEntry } from '../types';
 import {
@@ -15,6 +16,7 @@ type Props = {
   onClose: () => void;
   onSelectEntry: (entry: HistoryEntry) => void;
   onClear: () => void;
+  loadingDisabled?: boolean;
 };
 
 const formatDate = (iso: string) => {
@@ -35,16 +37,8 @@ export default function HistoryModal({
   onClose,
   onSelectEntry,
   onClear,
+  loadingDisabled = false,
 }: Props) {
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
-
   if (!open) return null;
 
   const sorted = [...entries].sort(
@@ -54,11 +48,9 @@ export default function HistoryModal({
   const entryCurrency = (code?: CurrencyCode): CurrencyCode => code ?? 'MYR';
 
   return (
-    <div
+    <Modal onClose={onClose}
       className="sheet-overlay"
       onClick={onClose}
-      role="dialog"
-      aria-modal="true"
       aria-label="Receipt history"
     >
       <div
@@ -67,7 +59,7 @@ export default function HistoryModal({
       >
         <div aria-hidden="true" className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/30 sm:hidden" />
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-bold text-white">Receipt History</h3>
+          <h3 className="text-lg font-bold text-white">Receipt History</h3>
           <button
             onClick={onClose}
             aria-label="Close history"
@@ -77,6 +69,8 @@ export default function HistoryModal({
           </button>
         </div>
 
+        <p className="mb-4 text-sm leading-relaxed text-slate-300">Saved on this browser only. Keeps your latest 20 bills. Loading a bill replaces the one on screen after confirmation.</p>
+        {loadingDisabled && <p role="status" className="mb-3 text-sm text-amber-200">Wait for the receipt scan to finish before loading a bill.</p>}
         {sorted.length > 0 ? (
           <ul className="-mr-2 min-h-0 flex-1 space-y-2 overflow-y-auto pr-2">
             {sorted.map((entry) => {
@@ -86,18 +80,19 @@ export default function HistoryModal({
                 <li key={entry.id}>
                   <button
                     type="button"
+                    disabled={loadingDisabled}
                     onClick={() => onSelectEntry(entry)}
-                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-blue-500/30 hover:bg-blue-600/10 active:scale-[0.98]"
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-blue-500/30 hover:bg-blue-600/10 active:scale-[0.98] disabled:opacity-50"
                   >
                     <div className="flex min-w-0 items-center gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600/20 text-blue-400">
                         <Receipt size={18} />
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-100">
+                        <p className="break-words text-base font-semibold text-slate-100">
                           {entry.restaurantName}
                         </p>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-sm text-slate-300">
                           {formatDate(entry.date)} - {entry.itemsCount} item(s)
                         </p>
                       </div>
@@ -107,7 +102,7 @@ export default function HistoryModal({
                         {formatMoney(entry.grandTotal, code)}
                       </p>
                       {formatMyrEquivalent(entry.grandTotal, code, rate) && (
-                        <span className="text-[10px] font-medium text-slate-400">
+                        <span className="text-sm font-medium text-slate-300">
                           {formatMyrEquivalent(entry.grandTotal, code, rate)}
                         </span>
                       )}
@@ -118,9 +113,8 @@ export default function HistoryModal({
             })}
           </ul>
         ) : (
-          <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-slate-300">
-            No saved receipts yet. Successfully scanned receipts will appear here
-            automatically.
+          <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+            No saved bills yet. Use Save to History for a manual bill. Reviewed scans are added automatically. Your current draft also saves automatically as you edit.
           </p>
         )}
 
@@ -135,6 +129,6 @@ export default function HistoryModal({
           </button>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }

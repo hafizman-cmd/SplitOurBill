@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: '/',
     name: 'Kira-Kira — Split Our Bill',
     short_name: 'Kira-Kira',
     description: 'AI-driven receipt splitter optimized for Southeast Asia / Malaysia',

@@ -46,7 +46,7 @@ export default function SummarySection({
       </h2>
 
       {people.length > 0 && unassignedCount === 0 && (
-        <div className="mb-3 flex items-center justify-between rounded-xl border border-white/10 bg-slate-950/30 px-3 py-2 text-xs text-slate-300 backdrop-blur-md">
+        <div className="mb-3 flex items-center justify-between rounded-xl border border-white/10 bg-slate-950/30 px-3 py-2 text-sm text-slate-300 backdrop-blur-md">
           <span>
             Collected: {money(people.reduce((total, person) =>
               paidStatus[person] ? total + (calc.perPerson[person]?.final ?? 0) : total,
@@ -57,7 +57,7 @@ export default function SummarySection({
             onClick={onResetPaid}
             disabled={!people.some((person) => paidStatus[person])}
             aria-label="Reset payment statuses"
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             <RefreshCw size={14} />
           </button>
@@ -67,7 +67,7 @@ export default function SummarySection({
       <div className="mb-3 rounded-2xl border border-blue-300/20 bg-blue-500/10 p-4">
         <p className="text-sm font-medium text-blue-100">Grand total</p>
         <p className="mt-1 text-3xl font-bold tracking-tight text-white tabular-nums">{money(calc.grandTotal)}</p>
-        {eq(calc.grandTotal) && <p className="mt-1 text-xs text-blue-100/80">{eq(calc.grandTotal)}</p>}
+        {eq(calc.grandTotal) && <p className="mt-1 text-sm text-blue-100/80">{eq(calc.grandTotal)}</p>}
       </div>
 
       <div className="space-y-1.5 rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-sm">
@@ -76,7 +76,7 @@ export default function SummarySection({
           <span className="flex flex-col items-end leading-tight">
             <span>{money(calc.subtotal)}</span>
             {eq(calc.subtotal) && (
-              <span className="text-[10px] font-normal text-slate-400">
+              <span className="text-sm font-normal text-slate-300">
                 {eq(calc.subtotal)}
               </span>
             )}
@@ -87,7 +87,7 @@ export default function SummarySection({
           <span className="flex flex-col items-end leading-tight">
             <span>{money(calc.serviceAmt)}</span>
             {eq(calc.serviceAmt) && (
-              <span className="text-[10px] font-normal text-slate-400">
+              <span className="text-sm font-normal text-slate-300">
                 {eq(calc.serviceAmt)}
               </span>
             )}
@@ -98,7 +98,7 @@ export default function SummarySection({
           <span className="flex flex-col items-end leading-tight">
             <span>{money(calc.taxAmt)}</span>
             {eq(calc.taxAmt) && (
-              <span className="text-[10px] font-normal text-slate-400">
+              <span className="text-sm font-normal text-slate-300">
                 {eq(calc.taxAmt)}
               </span>
             )}
@@ -122,21 +122,21 @@ export default function SummarySection({
             return (
               <div
                 key={p}
-                className={`flex items-center justify-between rounded-2xl p-4 ring-1 transition ${
+                className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4 ring-1 transition ${
                   paid
-                  ? 'bg-emerald-400/10 text-slate-400 ring-emerald-200/20 opacity-75'
+                  ? 'bg-emerald-400/10 text-slate-300 ring-emerald-200/30'
                     : 'border border-white/10 bg-slate-950/30 ring-0'
                 }`}
               >
-                <div className="flex min-w-0 items-center gap-3">
+                <div className="flex min-w-0 flex-1 basis-36 items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600/20 text-sm font-bold text-blue-300">
                     {initial}
                   </div>
                   <div className="min-w-0">
-                    <p className={`truncate text-sm font-semibold ${paid ? 'text-slate-400 line-through' : 'text-white'}`}>
+                    <p className={`break-words text-base font-semibold ${paid ? 'text-slate-300 line-through' : 'text-white'}`}>
                       {p}
                     </p>
-                    <p className={`text-[11px] ${paid ? 'text-slate-400/80' : 'text-slate-400'}`}>
+                    <p className="text-sm text-slate-300">
                       {entry.items.length > 0
                         ? `${entry.items.length} item(s) - ${formatMoney(
                             entry.raw,
@@ -147,19 +147,20 @@ export default function SummarySection({
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1 leading-tight">
-                  <p className={`text-lg font-bold ${paid ? 'text-emerald-200/70 line-through' : 'text-blue-400'}`}>
+                  <p className={`text-lg font-bold ${paid ? 'text-emerald-200 line-through' : 'text-blue-400'}`}>
                     {money(entry.final)}
                   </p>
                   {eq(entry.final) && (
-                    <p className="text-[10px] font-medium text-slate-400">
+                    <p className="text-sm font-medium text-slate-300">
                       {eq(entry.final)} for DuitNow
                     </p>
                   )}
                   <button
                     type="button"
                     onClick={() => onTogglePaid(p)}
+                    aria-pressed={paid}
                     aria-label={paid ? `Mark ${p} as unpaid` : `Mark ${p} as paid`}
-                    className={`flex items-center gap-1.5 min-h-11 rounded-xl border px-3 py-1 text-xs font-semibold transition active:scale-95 ${
+                    className={`flex items-center gap-1.5 min-h-11 rounded-xl border px-3 py-1 text-sm font-semibold transition active:scale-95 ${
                       paid
                         ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200 backdrop-blur-md hover:bg-emerald-500/20'
                         : 'border-white/15 bg-white/5 text-slate-200 shadow-sm hover:border-white/25 hover:bg-white/10 active:bg-white/15'
@@ -168,7 +169,7 @@ export default function SummarySection({
                     {paid ? (
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                     ) : (
-                      <Circle className="w-3.5 h-3.5 text-slate-400" />
+                      <Circle className="w-3.5 h-3.5 text-slate-300" />
                     )}
                     {paid ? 'Paid' : 'Mark Paid'}
                   </button>
@@ -177,7 +178,7 @@ export default function SummarySection({
             );
           })
         ) : (
-          <p className="rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-xs text-slate-400">
+          <p className="rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-sm text-slate-300">
             Add people to see each person&apos;s final payable amount (their
             item shares are proportionally scaled up by service charge and
             tax).

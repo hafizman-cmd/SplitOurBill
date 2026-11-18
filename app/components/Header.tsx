@@ -17,12 +17,12 @@ export default function Header({
         <KiraKiraLogo className="h-8 w-8 shrink-0 sm:h-11 sm:w-11" />
         <div className="flex min-w-0 items-center gap-2">
           <h1 className="truncate text-sm font-bold tracking-tight text-white sm:text-base">Kira-Kira</h1>
-          <span className="hidden text-[10px] font-medium uppercase tracking-wider text-slate-400 md:inline-block">
+          <span className="hidden text-sm font-medium uppercase tracking-wider text-slate-300 md:inline-block">
             SPLIT BILLS FAIRLY
           </span>
         </div>
         {scansRemaining !== null && (
-          <span className="flex shrink-0 items-center gap-1 rounded-full border border-blue-500/25 bg-blue-500/10 px-2 py-1 text-[11px] font-semibold text-blue-400">
+          <span className="flex shrink-0 items-center gap-1 rounded-full border border-blue-500/25 bg-blue-500/10 px-2 py-1 text-sm font-semibold text-blue-400">
             <Sparkles className="h-3 w-3 shrink-0 text-cyan-400" />
             <span>{scansRemaining} left</span>
           </span>

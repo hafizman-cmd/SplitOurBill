@@ -26,8 +26,8 @@ export default function BillFlowGuide({ currentStep, hasItems, hasPeople, unassi
         <ol className="grid grid-cols-4 gap-1">
           {steps.map((label, index) => (
             <li key={label}>
-              <button type="button" aria-current={currentStep === index ? 'step' : undefined} aria-label={`${index + 1}. ${label}${complete[index] ? ', complete' : ''}`} onClick={() => onSelectStep(index)} className={`flex min-h-20 w-full flex-col items-center gap-2 rounded-xl px-1 py-2 text-center text-xs font-semibold transition hover:bg-white/10 ${currentStep === index ? 'bg-blue-500/15 text-blue-100' : 'text-slate-300'}`}>
-                <span className={`flex h-7 w-7 items-center justify-center rounded-full border ${complete[index] ? 'border-emerald-400/30 bg-emerald-400/15 text-emerald-200' : currentStep === index ? 'border-blue-400 bg-blue-600 text-white' : 'border-white/20 text-slate-400'}`}>{complete[index] ? <Check size={15} /> : index + 1}</span>
+              <button type="button" aria-current={currentStep === index ? 'step' : undefined} aria-label={`${index + 1}. ${label}${complete[index] ? ', complete' : ''}`} onClick={() => onSelectStep(index)} className={`flex min-h-20 w-full flex-col items-center gap-2 rounded-xl px-1 py-2 text-center text-sm font-semibold transition hover:bg-white/10 ${currentStep === index ? 'bg-blue-500/15 text-blue-100' : 'text-slate-300'}`}>
+                <span className={`flex h-7 w-7 items-center justify-center rounded-full border ${complete[index] ? 'border-emerald-400/30 bg-emerald-400/15 text-emerald-200' : currentStep === index ? 'border-blue-400 bg-blue-600 text-white' : 'border-white/20 text-slate-300'}`}>{complete[index] ? <Check size={15} /> : index + 1}</span>
                 <span>{label}</span>
               </button>
             </li>
