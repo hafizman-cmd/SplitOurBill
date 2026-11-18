@@ -83,11 +83,37 @@ export default function Home() {
   const [dailyLimitOpen, setDailyLimitOpen] = useState(false);
   const [scansRemaining, setScansRemaining] = useState<number | null>(null);
   const [developerMode, setDeveloperMode] = useState(false);
+  const scanStatusVersion = useRef(0);
   const manualNameInputRef = useRef<HTMLInputElement>(null);
 
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recordedOpen = useRef(false);
+
+  useEffect(() => {
+    if (scanning) return;
+    let active = true;
+    const refreshScanStatus = async () => {
+      const version = ++scanStatusVersion.current;
+      try {
+        const response = await fetch('/api/scan', { cache: 'no-store' });
+        if (!response.ok) return;
+        const data: { remaining?: unknown } = await response.json();
+        if (active && version === scanStatusVersion.current && typeof data.remaining === 'number') {
+          setScansRemaining(Math.max(0, data.remaining));
+        }
+      } catch {}
+    };
+    void refreshScanStatus();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refreshScanStatus();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      active = false;
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [developerMode, scanning]);
 
   useEffect(() => {
     if (recordedOpen.current) return;
@@ -212,6 +238,7 @@ export default function Home() {
       return;
     }
 
+    scanStatusVersion.current += 1;
     setCropImage(null);
     setScanning(true);
     setScanError(null);

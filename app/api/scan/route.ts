@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ApiError, GoogleGenAI } from '@google/genai';
-import { createHash } from 'node:crypto';
-import { checkScanLimit } from '@/lib/scan-limiter';
+import { checkScanLimit, getScansRemaining, scanIdentity } from '@/lib/scan-limiter';
 import { isAdminRequest } from '@/lib/adminAuth';
 import { recordScanEvent } from '@/lib/audit';
 
 export const runtime = 'nodejs';
 
 const UPSTREAM_TIMEOUT_MS = 30_000;
+
+export async function GET(req: NextRequest) {
+  try {
+    const developer = isAdminRequest(req);
+    const { deviceId, ipHash } = scanIdentity(req);
+    const remaining = await getScansRemaining(deviceId, ipHash);
+    return NextResponse.json({ remaining, developer }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch {
+    return NextResponse.json({ error: 'Could not load scan allowance.' }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
+  }
+}
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 10;
@@ -225,11 +235,7 @@ export async function POST(req: NextRequest) {
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       req.headers.get('x-real-ip') ||
       'unknown_ip';
-    const userAgent = req.headers.get('user-agent') || 'unknown_ua';
-    const serverFingerprint = createHash('md5')
-      .update(`${ip}-${userAgent}`)
-      .digest('hex');
-    const ipHash = createHash('md5').update(ip).digest('hex');
+    const { deviceId: serverFingerprint, ipHash } = scanIdentity(req);
 
     const developer = isAdminRequest(req);
     if (!developer && isRateLimited(ip)) {

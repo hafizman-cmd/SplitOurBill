@@ -1,6 +1,18 @@
 import { turso } from '@/lib/turso';
+import { createHash } from 'node:crypto';
+import type { NextRequest } from 'next/server';
 
 const DAILY_SCAN_LIMIT = 2;
+
+export function scanIdentity(req: NextRequest): { deviceId: string; ipHash: string } {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') || 'unknown_ip';
+  const userAgent = req.headers.get('user-agent') || 'unknown_ua';
+  return {
+    deviceId: createHash('md5').update(`${ip}-${userAgent}`).digest('hex'),
+    ipHash: createHash('md5').update(ip).digest('hex'),
+  };
+}
 
 const CREATE_SCAN_LIMITS_TABLE = `
   CREATE TABLE IF NOT EXISTS scan_limits (
@@ -106,4 +118,16 @@ export async function checkScanLimit(
       ? Math.max(0, DAILY_SCAN_LIMIT - scanCount)
       : 0,
   };
+}
+
+export async function getScansRemaining(deviceId: string, ipHash: string): Promise<number> {
+  await ensureScanLimitsTable();
+  const result = await turso.execute({
+    sql: `SELECT COALESCE(SUM(scan_count), 0) AS scan_count FROM scan_limits
+      WHERE scan_date = CURRENT_DATE AND (device_id = ? OR ip_hash = ?)`,
+    args: [deviceId, ipHash],
+  });
+  const count = Number((result.rows[0] as Record<string, unknown> | undefined)?.scan_count);
+  if (!Number.isFinite(count)) throw new Error('Invalid scan count');
+  return Math.max(0, DAILY_SCAN_LIMIT - count);
 }
