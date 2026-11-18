@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kira-kira-v1';
+const CACHE_NAME = 'kira-kira-v2';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -20,6 +20,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
 
   if (request.method !== 'GET' || url.pathname.startsWith('/api/')) return;
+  if (url.pathname === '/view' || url.pathname.startsWith('/view/')) return;
 
   event.respondWith((async () => {
     try {

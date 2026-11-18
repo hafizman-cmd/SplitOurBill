@@ -4,7 +4,7 @@ Guidance for AI coding agents working in this repository.
 
 ## Project Overview
 
-Kira-Kira (SplitTheBill) is a mobile-first Next.js web app for splitting restaurant bills fairly. Users upload a receipt photo, a vision AI extracts line items / service charge / tax, users assign items to people, and the app computes each person's final payable amount (RM). Built for the Malaysian context (DuitNow, SST, RM currency). No database, no auth — all state is client-side React state plus localStorage for payment settings.
+Kira-Kira (SplitTheBill) is a mobile-first Next.js web app for splitting restaurant bills fairly. Users upload a receipt photo, a vision AI extracts line items / service charge / tax, users assign items to people, and the app computes each person's final payable amount (RM). Built for the Malaysian context (DuitNow, SST, RM currency). Bill drafts and payment settings stay on the device. Turso stores shared bill snapshots, analytics, and scan limits.
 
 ## Commands
 
@@ -42,7 +42,7 @@ app/
   lib/
     utils.ts           formatRM, round2, uid, compressImage (client-side canvas JPEG), readQrPayload (jsQR EMVCo decode), storage keys
     split.ts           PURE bill math: computeSplit(), buildShareText(), findAccountNumber() — no React, no DOM
-    urlState.ts        encodeBillToUrl/decodeBillFromUrl (lz-string) + coercion of untrusted URL payloads
+    sharedBill.ts      Shared bill snapshot type and input validation
   components/          Presentational components; each modal owns its draft state + Escape handling
     Header.tsx
     ReceiptScanner.tsx   File input → onSelect(file); clears input itself
@@ -55,7 +55,8 @@ app/
     PaymentQrModal.tsx   Full-screen QR display + download
     Footer.tsx           Legal disclaimer (bill calculator, no payment processing)
     Toast.tsx
-  view/page.tsx        'use client' read-only guest view (?b= compressed payload): person lookup, breakdown, DuitNow QR + settlement card
+  view/[id]/page.tsx   Read-only guest view: looks up a Turso snapshot with a 72-hour expiry
+  api/shared-bills/route.ts  POST bill snapshot → Turso → short share ID
   api/scan/route.ts   POST { imageBase64 } → AI vision proxy → { items, serviceChargePercent, taxPercent }
 ```
 

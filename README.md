@@ -1,6 +1,6 @@
 # Kira-Kira (SplitTheBill)
 
-Scan a receipt, assign items to friends, and split the bill fairly with service charge and tax included. Built for Malaysian dining (RM, SST, DuitNow), works entirely in the browser.
+Scan a receipt, assign items to friends, and split the bill fairly with service charge and tax included. Built for Malaysian dining (RM, SST, DuitNow).
 
 ## Features
 
@@ -8,7 +8,7 @@ Scan a receipt, assign items to friends, and split the bill fairly with service 
 - **Item assignment** — tap names to split any item evenly across selected people.
 - **Fair totals** — each person's share is proportionally scaled by service charge and tax, with cent-accurate allocation so per-person totals always sum to the grand total.
 - **Payment details** — save bank/DuitNow details and a payment QR code (stored on-device) and show them when settling up.
-- **Share summary** — export a text breakdown via the native share sheet or clipboard.
+- **Share summary** — send a text breakdown and a short guest link via WhatsApp, the native share sheet, or the clipboard. Anyone with the link can see the bill and any included payment details for 72 hours.
 
 ## Tech Stack
 
@@ -28,7 +28,11 @@ Create a `.env` file in the project root:
 
 ```
 GEMINI_API_KEY=your-key-here
+TURSO_DATABASE_URL=your-database-url
+TURSO_AUTH_TOKEN=your-database-token
 ```
+
+The share feature creates its table on first use. Expired bills are removed during later share requests. Create links from the public deployment when sharing with other devices.
 
 Run the development server:
 

@@ -14,7 +14,7 @@ import {
   uid,
 } from './lib/utils';
 import { buildShareText, computeSplit } from './lib/split';
-import { encodeBillToUrl, type SharedBill } from './lib/urlState';
+import type { SharedBill } from './lib/sharedBill';
 import { CURRENCIES, type CurrencyCode } from './lib/currency';
 import Header from './components/Header';
 import ConfirmModal from './components/ConfirmModal';
@@ -56,7 +56,8 @@ export default function Home() {
   const [restaurantName, setRestaurantName] = useState('');
   const [billDate, setBillDate] = useState('');
   const [shareModalOpen, setShareModalOpen] = useState(false);
-  const [sharePayload, setSharePayload] = useState<{ url: string; text: string } | null>(null);
+  const [sharePayload, setSharePayload] = useState<{ url: string; text: string; whatsappText: string } | null>(null);
+  const [creatingShare, setCreatingShare] = useState(false);
 
   const [items, setItems] = useState<Item[]>([]);
 
@@ -576,7 +577,8 @@ export default function Home() {
     [items, people, serviceChargeInput, taxInput, roundingAdjustmentInput],
   );
 
-  const openShareModal = () => {
+  const openShareModal = async () => {
+    if (creatingShare) return;
     logEvent('share_summary_tapped');
     if (items.length === 0 || people.length === 0) {
       showToast('Add items and people first.');
@@ -604,7 +606,6 @@ export default function Home() {
             p,
             {
               items: entry.items.map((it) => ({ name: it.name, share: it.share })),
-              raw: entry.raw,
               final: entry.final,
             },
           ];
@@ -620,14 +621,34 @@ export default function Home() {
       bankDetails: bankDetails.trim(),
       qrPayload,
     };
-    const origin =
-      typeof window !== 'undefined' && window.location.origin
-        ? window.location.origin
-        : 'https://splitourbill.vercel.app';
-    const url = `${origin}/view?b=${encodeURIComponent(encodeBillToUrl(sharedBill))}`;
-    const text = buildShareText(calc, people, bankDetails, currency, myrRate, url);
-    setSharePayload({ url, text });
-    setShareModalOpen(true);
+    setCreatingShare(true);
+    try {
+      const response = await fetch('/api/shared-bills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sharedBill),
+      });
+      if (!response.ok) {
+        showToast(response.status === 429
+          ? 'Too many share links created. Try again in a minute.'
+          : response.status === 413
+            ? 'This bill is too large to share as a link.'
+            : 'Couldn’t create the share link. Try again.');
+        return;
+      }
+      const { id } = await response.json();
+      const url = `${window.location.origin}/view/${id}`;
+      setSharePayload({
+        url,
+        text: buildShareText(calc, people, bankDetails, currency, myrRate, url),
+        whatsappText: buildShareText(calc, people, bankDetails, currency, myrRate, url, 'whatsapp'),
+      });
+      setShareModalOpen(true);
+    } catch {
+      showToast('Couldn’t create the share link. Try again.');
+    } finally {
+      setCreatingShare(false);
+    }
   };
 
   const saveSettings = (
@@ -746,11 +767,13 @@ export default function Home() {
 
         <button
           type="button"
-          onClick={() => currentStep === 3 ? openShareModal() : selectStep(currentStep)}
+          onClick={() => currentStep === 3 ? void openShareModal() : selectStep(currentStep)}
+          disabled={currentStep === 3 && creatingShare}
+          aria-busy={currentStep === 3 && creatingShare}
           className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 z-50 flex h-11 -translate-x-1/2 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-blue-400/30 bg-gradient-to-r from-blue-700 to-blue-600 px-7 text-sm font-semibold text-white shadow-xl shadow-blue-500/35 backdrop-blur-md transition-all active:scale-95"
         >
           {currentStep === 3 ? <Share2 size={16} /> : <ArrowRight size={16} />}
-          {['Scan or add items', 'Add people', `Assign ${unassignedCount} item${unassignedCount === 1 ? '' : 's'}`, 'Share Summary'][currentStep]}
+          {['Scan or add items', 'Add people', `Assign ${unassignedCount} item${unassignedCount === 1 ? '' : 's'}`, creatingShare ? 'Creating link…' : 'Share Summary'][currentStep]}
         </button>
 
         <Footer />
@@ -785,6 +808,7 @@ export default function Home() {
           open={shareModalOpen}
           url={sharePayload?.url ?? ''}
           text={sharePayload?.text ?? ''}
+          whatsappText={sharePayload?.whatsappText ?? ''}
           onClose={() => setShareModalOpen(false)}
           onNotify={showToast}
         />

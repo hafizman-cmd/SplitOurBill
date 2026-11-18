@@ -9,6 +9,7 @@ type Props = {
   open: boolean;
   url: string;
   text: string;
+  whatsappText: string;
   onClose: () => void;
   onNotify: (message: string) => void;
 };
@@ -19,6 +20,7 @@ export default function ShareModal({
   open,
   url,
   text,
+  whatsappText,
   onClose,
   onNotify,
 }: Props) {
@@ -56,7 +58,7 @@ export default function ShareModal({
 
   const openWhatsApp = () => {
     window.open(
-      `https://wa.me/?text=${encodeURIComponent(text)}`,
+      `https://wa.me/?text=${encodeURIComponent(whatsappText)}`,
       '_blank',
       'noopener,noreferrer',
     );
@@ -100,8 +102,8 @@ export default function ShareModal({
           </button>
         </div>
         <p className="mb-4 text-sm leading-relaxed text-slate-300">
-          Anyone with this link can view the full breakdown and settle via
-          DuitNow - no account needed.
+          Anyone with the link can see the breakdown and any included payment details.
+          The link expires in 3 days.
         </p>
 
         <div className="mb-4 max-h-28 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-3 backdrop-blur-md">

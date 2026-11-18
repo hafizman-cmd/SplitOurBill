@@ -104,6 +104,7 @@ export function buildShareText(
   currency: CurrencyCode = 'MYR',
   myrRate = 1,
   shareUrl = '',
+  format: 'plain' | 'whatsapp' = 'plain',
 ): string {
   const amt = (n: number) => {
     const base = formatMoney(n, currency);
@@ -130,9 +131,12 @@ export function buildShareText(
   lines.push(DIVIDER);
   lines.push('ITEM BREAKDOWN');
   lines.push(DIVIDER);
-  for (const p of people) {
+  for (const [index, p] of people.entries()) {
+    if (index > 0) lines.push('');
     const entry = calc.perPerson[p];
-    lines.push(`${p} pays ${amt(entry.final)}`);
+    const name = p.replace(/\s+/g, ' ').trim();
+    const heading = `${name} pays ${amt(entry.final)}`;
+    lines.push(format === 'whatsapp' ? `*${heading}*` : heading);
     for (const it of entry.items) {
       const shared =
         it.coSharers.length > 0
