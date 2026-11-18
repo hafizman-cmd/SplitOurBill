@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.vercel.splitourbill.twa",
+        "sha256_cert_fingerprints": ["4B:23:94:24:2E:02:C9:15:57:36:14:BA:ED:C2:17:7F:90:54:8F:80:7D:58:FF:BA:45:0E:C5:C7:06:B4:70:55"]
+      }
+    }]
