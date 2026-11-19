@@ -14,7 +14,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import type { SharedBill } from '../lib/sharedBill';
-import { formatMoney, formatMyrEquivalent } from '../lib/currency';
+import { currencyDecimalPlaces, formatMoney, formatMyrEquivalent } from '../lib/currency';
 import { findAccountNumber } from '../lib/split';
 import { KiraKiraLogo } from '../components/ui/logo';
 import { logEvent } from '@/lib/telemetry';
@@ -61,20 +61,21 @@ export default function GuestBillView({ bill }: { bill: SharedBill }) {
   }, [bill.date]);
 
   const entry = selected ? bill.perPerson[selected] : undefined;
+  const bankDetails = bill.bankDetails.trim();
+  const hasPaymentDetails = Boolean(bankDetails || bill.qrPayload);
+  const hasBalance = Boolean(entry && entry.final > 0);
 
   const accountNumber = useMemo(
     () => findAccountNumber(bill.bankDetails),
     [bill.bankDetails],
   );
 
-  const settlementAmount = useMemo(() => {
-    if (!entry) return null;
-    if (bill.currency === 'MYR') return `RM ${entry.final.toFixed(2)}`;
-    if (Number.isFinite(bill.myrRate) && bill.myrRate > 0) {
-      return `RM ${(entry.final * bill.myrRate).toFixed(2)}`;
-    }
-    return formatMoney(entry.final, bill.currency);
-  }, [bill, entry]);
+  const myrAmount = entry ? entry.final * (bill.currency === 'MYR' ? 1 : bill.myrRate) : 0;
+  const amountInMyr = Number.isFinite(myrAmount) && Number(myrAmount.toFixed(2)) > 0 ? myrAmount.toFixed(2) : null;
+  const settlementAmount = amountInMyr ? `RM ${amountInMyr}` : null;
+  const paymentInstruction = settlementAmount
+    ? `Check the recipient and amount in your banking app. If it asks for an amount, enter ${settlementAmount}.`
+    : 'Confirm the amount in RM with your host before paying.';
 
   const copyValue = async (key: string, value: string) => {
     try {
@@ -154,83 +155,50 @@ export default function GuestBillView({ bill }: { bill: SharedBill }) {
           </section>
 
           {entry && (
-            <section aria-label={`${selected}'s amount to pay`} aria-live="polite" className="glass-card border-blue-400/25 p-5">
-              <h2 className="text-sm font-semibold text-slate-200">{selected}&apos;s share</h2>
-              <p className="mt-3 text-sm text-blue-200">Total to Pay</p>
-              <p className="mt-1 text-4xl font-bold tracking-tight text-white tabular-nums">{money(entry.final)}</p>
-              {eq(entry.final) && <p className="mt-1 text-sm font-semibold text-blue-200">{eq(entry.final)} for DuitNow</p>}
-              <p className="mt-2 text-sm text-slate-300">Includes your share of the bill&apos;s charges and rounding.</p>
-              {settlementAmount && <div className="mt-4 flex"><CopyButton flashKey="amount" label={`Copy amount (${settlementAmount})`} value={settlementAmount} flash={flash} onCopy={copyValue} /></div>}
+            <section aria-label={`${selected}'s share and payment details`} className="glass-card border-blue-400/25 p-5">
+              <div aria-live="polite">
+                <h2 className="text-sm font-semibold text-slate-200">{selected}&apos;s share</h2>
+                <p className="mt-3 text-sm text-blue-200">Total to Pay</p>
+                <p className="mt-1 text-4xl font-bold tracking-tight text-white tabular-nums">{money(entry.final)}</p>
+                {bill.currency !== 'MYR' && settlementAmount && <p className="mt-1 text-sm font-semibold text-blue-200">Approximately {settlementAmount} for DuitNow</p>}
+              </div>
+
+              {!hasBalance && <p className="mt-3 text-sm text-slate-300">No payment is due for your share.</p>}
+              {hasBalance && !hasPaymentDetails && (
+                <p className="mt-3 text-sm text-slate-300">Your host hasn&apos;t added payment details. Ask them how to transfer your share.</p>
+              )}
+
+              {hasBalance && (
+                <div className="mt-4 space-y-3 border-t border-white/10 pt-4">
+                  {hasPaymentDetails && <h3 className="font-semibold text-slate-100">Pay your host via DuitNow</h3>}
+                  {bankDetails && <p className="whitespace-pre-line break-words rounded-xl bg-slate-950/40 p-3 text-sm leading-relaxed text-slate-200">{bankDetails}</p>}
+                  {(amountInMyr || !hasPaymentDetails || accountNumber) && (
+                    <div className="flex flex-wrap gap-2">
+                      {(amountInMyr || !hasPaymentDetails) && <CopyButton flashKey="amount" label={`Copy ${settlementAmount ?? money(entry.final)}`} value={amountInMyr ?? entry.final.toFixed(currencyDecimalPlaces(bill.currency))} flash={flash} onCopy={copyValue} />}
+                      {accountNumber && <CopyButton flashKey="account" label="Copy account number" value={accountNumber.replace(/\D/g, '')} flash={flash} onCopy={copyValue} />}
+                    </div>
+                  )}
+                  {hasPaymentDetails && <p className="text-sm leading-relaxed text-slate-300">{paymentInstruction}</p>}
+                  {bill.qrPayload && (
+                    <button type="button" onClick={() => setQrExpanded(true)} aria-label="Enlarge DuitNow QR code" className="flex w-full flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm font-semibold text-slate-200 transition hover:border-white/20">
+                      <span className="flex items-center gap-2"><QrCode size={16} /> DuitNow QR</span>
+                      <span className="rounded-xl bg-white p-3"><QRCodeSVG value={bill.qrPayload} size={168} className="h-auto max-w-full" /></span>
+                      <span className="font-medium text-slate-300">Tap to enlarge</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </section>
           )}
 
-          <div className="flex w-full flex-col gap-3">
-            {entry && (bill.bankDetails.trim() !== '' || bill.qrPayload !== '') && (
-              <section className="glass-card p-5">
-              <div className="mb-3 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-slate-300">
-                  Settle via DuitNow
-                </h2>
-              </div>
-
-              {bill.qrPayload && (
-                <button
-                  type="button"
-                  onClick={() => setQrExpanded(true)}
-                  aria-label="Enlarge DuitNow QR code"
-                  className="mb-3 flex w-full flex-col items-center rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm backdrop-blur-md transition hover:border-white/20 active:scale-[0.98]"
-                >
-                  <span className="mb-2 flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-slate-300">
-                    <QrCode className="w-4 h-4" />
-                    Scan to pay via DuitNow
-                  </span>
-                  <span className="rounded-xl bg-white p-3 ring-1 ring-slate-200/70">
-                    <QRCodeSVG value={bill.qrPayload} size={180} />
-                  </span>
-                  <span className="mt-2 text-sm font-medium text-slate-300">
-                    Tap to enlarge
-                  </span>
-                </button>
-              )}
-
-              {bill.bankDetails.trim() !== '' && (
-                <div className="rounded-xl border border-white/10 bg-slate-950/30 p-3 break-words text-sm leading-relaxed text-slate-300">
-                  {bill.bankDetails
-                    .split('\n')
-                    .filter((line) => line.trim() !== '')
-                    .map((line, i) => (
-                      <p key={i}>{line}</p>
-                    ))}
-                </div>
-              )}
-
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                {accountNumber && (
-                  <CopyButton
-                    flashKey="account"
-                    label="Copy Account Number"
-                    value={accountNumber}
-                    flash={flash}
-                    onCopy={copyValue}
-                  />
-                )}
-
-              </div>
-              </section>
-            )}
-
-            {entry && !bill.bankDetails.trim() && !bill.qrPayload && <p className="glass-card p-5 text-sm text-slate-300">Your host hasn&apos;t added payment details. Ask them how to transfer your share.</p>}
-
+          {hasBalance && (
             <div className="flex items-start justify-center gap-1.5 px-4 text-center text-sm text-slate-300">
               <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-300" />
               <span>
-                Kira-Kira is a bill calculation tool and does not process payments
-                directly. All fund transfers are executed securely within your
-                bank&apos;s official application.
+                Pay in your bank&apos;s official app. Your host marks payments manually.
               </span>
             </div>
-          </div>
+          )}
 
           {entry && (
             <section className="glass-card p-5">
@@ -336,27 +304,26 @@ export default function GuestBillView({ bill }: { bill: SharedBill }) {
           </Link>
         </footer>
 
-        {qrExpanded && bill.qrPayload && (
+        {qrExpanded && bill.qrPayload && hasBalance && (
           <Modal onClose={() => setQrExpanded(false)}
             className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-6 backdrop-blur-sm"
             onClick={() => setQrExpanded(false)}
             aria-label="DuitNow QR code"
           >
             <div
-              className="glass-card w-full max-w-xs p-6 dark:text-slate-100"
+              className="glass-card max-h-[calc(100dvh-3rem)] w-full max-w-xs overflow-y-auto p-6 text-slate-100"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mx-auto w-fit rounded-2xl bg-white p-4 ring-1 ring-slate-200">
                 <QRCodeSVG value={bill.qrPayload} size={240} className="h-auto w-full max-w-[240px]" />
               </div>
-              <p className="mt-4 text-center text-sm font-medium leading-relaxed text-slate-300">
-                Scan with your banking app to pay
-                {settlementAmount ? ` ${settlementAmount}` : ''}
-              </p>
+              {settlementAmount && <p className="mt-4 text-center text-2xl font-bold tabular-nums text-white">{settlementAmount}</p>}
+              <p className="mt-2 text-center text-sm leading-relaxed text-slate-300">{paymentInstruction}</p>
+              {amountInMyr && <div className="mt-3 flex"><CopyButton flashKey="qr-amount" label={`Copy ${settlementAmount}`} value={amountInMyr} flash={flash} onCopy={copyValue} /></div>}
               <button
                 type="button"
                 onClick={() => setQrExpanded(false)}
-                className="mt-4 w-full rounded-xl bg-slate-100 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-200 active:scale-[0.98]"
+                className="mt-4 min-h-11 w-full rounded-xl bg-slate-100 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-200 active:scale-[0.98]"
               >
                 Close
               </button>

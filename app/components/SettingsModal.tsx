@@ -1,6 +1,7 @@
 'use client';
 
 import Modal from './Modal';
+import DeveloperSettings from './DeveloperSettings';
 
 import { useEffect, useState } from 'react';
 import { Loader2, Trash2, Upload, X } from 'lucide-react';
@@ -8,6 +9,9 @@ import { compressImage, readQrPayload, readQrPayloadFromFile } from '../lib/util
 
 type Props = {
   open: boolean;
+  developerMode: boolean;
+  scanning: boolean;
+  onDeveloperModeChange: (enabled: boolean) => void;
   initialBankDetails: string;
   initialQrCode: string;
   initialQrPayload: string;
@@ -18,6 +22,9 @@ type Props = {
 
 export default function SettingsModal({
   open,
+  developerMode,
+  scanning,
+  onDeveloperModeChange,
   initialBankDetails,
   initialQrCode,
   initialQrPayload,
@@ -42,8 +49,6 @@ export default function SettingsModal({
       }
     }
   }, [open, initialBankDetails, initialQrCode, initialQrPayload]);
-
-  if (!open) return null;
 
   const save = () => {
     onSave(settingsDraft.trim(), settingsQrDraft, settingsQrPayloadDraft);
@@ -80,11 +85,11 @@ export default function SettingsModal({
     }
   };
 
-  return (
+  return open ? (
     <Modal onClose={onClose}
       className="sheet-overlay"
       onClick={onClose}
-      aria-label="Payment settings"
+      aria-label="Settings"
     >
       <div
         className="glass-card sheet-panel w-full max-w-md p-6 text-slate-100"
@@ -93,7 +98,7 @@ export default function SettingsModal({
         <div aria-hidden="true" className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/30 sm:hidden" />
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-bold text-white">
-            Payment Details
+            Settings
           </h3>
           <button
             onClick={onClose}
@@ -103,6 +108,7 @@ export default function SettingsModal({
             <X size={18} />
           </button>
         </div>
+        <h4 className="mb-1 text-sm font-semibold text-white">Payment details</h4>
         <p className="mb-2 text-sm leading-relaxed text-slate-300">
           Saved on this device and included when you share the summary.
         </p>
@@ -212,7 +218,8 @@ export default function SettingsModal({
             Save
           </button>
         </div>
+        <DeveloperSettings developerMode={developerMode} scanning={scanning} onDeveloperModeChange={onDeveloperModeChange} />
       </div>
     </Modal>
-  );
+  ) : null;
 }

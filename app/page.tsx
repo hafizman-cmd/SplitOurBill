@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { ArrowRight, ChevronDown, Save, Share2 } from 'lucide-react';
+import { ArrowRight, ChevronDown, Save, Share2, X } from 'lucide-react';
 import type { HistoryEntry, Item, ReceiptCharges, ScanResponse, SplitResult } from './types';
 import {
   HISTORY_STORAGE_KEY,
@@ -42,6 +42,10 @@ import { getDeviceId } from '@/lib/device';
 import DailyScanLimitModal from './components/DailyScanLimitModal';
 import InstallChoiceModal from './components/InstallChoiceModal';
 
+type Removal =
+  | { type: 'item'; index: number; item: Item }
+  | { type: 'person'; index: number; name: string; itemIds: Set<string>; paid: boolean };
+
 export default function Home() {
   const [bankDetails, setBankDetails] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -64,6 +68,8 @@ export default function Home() {
   const [creatingShare, setCreatingShare] = useState(false);
 
   const [items, setItems] = useState<Item[]>([]);
+  const [removal, setRemoval] = useState<Removal | null>(null);
+  const undoButtonRef = useRef<HTMLButtonElement>(null);
 
   const [serviceChargeInput, setServiceChargeInput] = useState('0');
   const [receiptCharges, setReceiptCharges] = useState<ReceiptCharges>();
@@ -98,6 +104,23 @@ export default function Home() {
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recordedOpen = useRef(false);
+
+  useEffect(() => {
+    if (removal && document.activeElement === document.body) {
+      undoButtonRef.current?.focus({ preventScroll: true });
+    }
+  }, [removal]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/admin/auth', { cache: 'no-store', signal: controller.signal })
+      .then((response) => response.json())
+      .then((data) => {
+        if (!controller.signal.aborted) setDeveloperMode(data.authenticated === true);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     if (scanning) return;
@@ -299,7 +322,7 @@ export default function Home() {
           setScansRemaining(0);
           setDeveloperMode(false);
           if (developerMode) {
-            setScanError('Developer session expired. Enter the admin password again to scan.');
+            setScanError('Developer session expired. Re-enable it under Settings → Developer options to scan.');
             return;
           }
           setDailyLimitOpen(true);
@@ -465,6 +488,7 @@ export default function Home() {
     setActiveHistoryId(entry.id);
     setShowUnassignedOnly(false);
     setScanError(null);
+    setRemoval(null);
     setItems(snap.items);
     setPeople(snap.people);
     setPaidStatus(
@@ -493,6 +517,7 @@ export default function Home() {
   const startNewBill = () => {
     cancelRateRequest();
     setActiveHistoryId(null);
+    setRemoval(null);
     setItems([]);
     setPeople([]);
     setPaidStatus({});
@@ -534,12 +559,19 @@ export default function Home() {
       showToast('That name is already added.');
       return false;
     }
+    if (removal?.type === 'person' && removal.name.toLowerCase() === name.toLowerCase()) setRemoval(null);
     setPeople((prev) => [...prev, name]);
     setPaidStatus((prev) => ({ ...prev, [name]: false }));
     return true;
   };
 
   const removePerson = (name: string) => {
+    const index = people.indexOf(name);
+    if (index === -1) return;
+    setRemoval({
+      type: 'person', index, name, paid: paidStatus[name] ?? false,
+      itemIds: new Set(items.filter((item) => item.assigned.includes(name)).map((item) => item.id)),
+    });
     setPeople((prev) => prev.filter((p) => p !== name));
     setPaidStatus((prev) => {
       const next = { ...prev };
@@ -575,7 +607,35 @@ export default function Home() {
   };
 
   const removeItem = (id: string) => {
+    const index = items.findIndex((item) => item.id === id);
+    if (index === -1) return;
+    setRemoval({ type: 'item', index, item: items[index] });
     setItems((prev) => prev.filter((it) => it.id !== id));
+  };
+
+  const closeRemoval = () => {
+    const section = removal?.type === 'person' ? peopleSectionRef.current : itemsSectionRef.current;
+    section?.focus({ preventScroll: true });
+    setRemoval(null);
+  };
+
+  const undoRemoval = () => {
+    if (!removal) return;
+    if (removal.type === 'person') {
+      const { index, name, paid, itemIds } = removal;
+      setPeople((current) => [...current.slice(0, index), name, ...current.slice(index)]);
+      setPaidStatus((current) => ({ ...current, [name]: paid }));
+      setItems((current) => current.map((item) => itemIds.has(item.id)
+        ? { ...item, assigned: [...item.assigned, name] }
+        : item));
+      showToast(`Restored ${name} and their assignments.`);
+    } else {
+      const { index, item } = removal;
+      const restored = { ...item, assigned: item.assigned.filter((person) => people.includes(person)) };
+      setItems((current) => [...current.slice(0, index), restored, ...current.slice(index)]);
+      showToast(`Restored ${item.name}.`);
+    }
+    closeRemoval();
   };
 
   const updateItem = (id: string, name: string, price: number) => {
@@ -584,6 +644,14 @@ export default function Home() {
 
   const assignEveryone = (id: string) => {
     setItems((current) => current.map((item) => item.id === id ? { ...item, assigned: [...people] } : item));
+  };
+
+  const assignSelected = (ids: string[], assignees: string[]) => {
+    const selected = new Set(ids);
+    setItems((current) => current.map((item) => selected.has(item.id)
+      ? { ...item, assigned: [...new Set([...item.assigned, ...assignees])] }
+      : item));
+    showToast(`Updated assignments for ${ids.length} ${ids.length === 1 ? 'item' : 'items'}.`);
   };
 
   const peopleSet = new Set(people);
@@ -845,8 +913,6 @@ export default function Home() {
             <ReceiptScanner
               scanning={scanning}
               scanError={scanError}
-              developerMode={developerMode}
-              onDeveloperModeChange={setDeveloperMode}
               onSelect={handleFileSelected}
               onOpenCamera={() => setCameraOpen(true)}
             />
@@ -870,6 +936,7 @@ export default function Home() {
               onRemoveItem={removeItem}
               onUpdateItem={updateItem}
               onAssignEveryone={assignEveryone}
+              onAssignSelected={assignSelected}
               showUnassignedOnly={showUnassignedOnly}
               onFilterChange={setShowUnassignedOnly}
               onToggleAssignment={toggleAssignment}
@@ -920,6 +987,14 @@ export default function Home() {
           </div>
         </main>
 
+        {removal && (
+          <div className="fixed inset-x-4 bottom-[calc(max(1.5rem,env(safe-area-inset-bottom))+3.25rem)] z-[51] mx-auto flex max-w-sm items-center gap-2 rounded-2xl border border-white/15 bg-slate-900 p-2 pl-4 text-sm text-white shadow-xl">
+            <p role="status" className="line-clamp-2 min-w-0 flex-1 break-words">{removal.type === 'person' ? `${removal.name} and their assignments removed.` : `${removal.item.name} removed.`}</p>
+            <button ref={undoButtonRef} type="button" onClick={undoRemoval} className="min-h-11 rounded-xl bg-blue-600/25 px-3 font-semibold text-blue-100 hover:bg-blue-600/40">Undo</button>
+            <button type="button" onClick={closeRemoval} aria-label="Dismiss removal notice" className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10"><X size={17} /></button>
+          </div>
+        )}
+
         <button
           type="button"
           onClick={() => currentStep === 3 && !calc.issue ? void openShareModal() : selectStep(currentStep)}
@@ -961,6 +1036,9 @@ export default function Home() {
           onClose={() => setSettingsOpen(false)}
           onSave={saveSettings}
           onNotify={showToast}
+          developerMode={developerMode}
+          scanning={scanning}
+          onDeveloperModeChange={setDeveloperMode}
         />
 
         <PaymentQrModal
