@@ -14,9 +14,15 @@ type AuditLogProps = {
   refreshKey: number;
 };
 
-export default function AuditLog({ range, onUnauthorized, refreshKey }: AuditLogProps) {
-  const [filter, setFilter] = useState<AuditFilter>('all');
+export default function AuditLog({ range, onUnauthorized, refreshKey, filter, onFilterChange }: AuditLogProps & {
+  filter: AuditFilter;
+  onFilterChange: (filter: AuditFilter) => void;
+}) {
   const heading = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    heading.current?.focus();
+  }, []);
 
   return (
     <section aria-labelledby="audit-log-heading" className={`${panelClass} overflow-hidden`}>
@@ -27,7 +33,7 @@ export default function AuditLog({ range, onUnauthorized, refreshKey }: AuditLog
         </div>
         <label className="flex flex-wrap items-center gap-2 text-sm text-slate-300">
           Event type
-          <select value={filter} onChange={(event) => setFilter(event.target.value as AuditFilter)} className={controlClass}>
+          <select value={filter} onChange={(event) => onFilterChange(event.target.value as AuditFilter)} className={controlClass}>
             {Object.entries(AUDIT_FILTERS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
@@ -119,9 +125,10 @@ function AuditResults({
           ? <AdminEvents audit events={events.map((event) => ({ ...event, message: AUDIT_MESSAGES[event.code] }))} />
           : emptyMessage && <p className="px-4 py-8 text-center text-sm text-slate-400" role="status">{emptyMessage}</p>}
       </div>
+      {pending === 'initial' && events.length > 0 && <p role="status" className="px-4 py-3 text-sm text-slate-400 sm:px-5">Refreshing events…</p>}
       {error && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 px-4 py-3 sm:px-5">
-          <p role="alert" className="text-sm text-rose-300">{error}</p>
+          <p role="alert" className="text-sm text-rose-300">{error} {error === 'Could not refresh the audit log.' && events.length > 0 && 'Showing the last successful update.'}</p>
           {error === 'Could not refresh the audit log.' && (
             <button type="button" className={controlClass} onClick={() => setRetryKey((value) => value + 1)}>Retry audit log</button>
           )}

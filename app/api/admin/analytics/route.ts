@@ -125,6 +125,8 @@ export async function GET(request: NextRequest) {
       successfulScans,
       failedScans,
       clientErrors,
+      serverSuccesses,
+      serverOutcomes,
       serverSuccessRate: serverOutcomes > 0 ? 100 * serverSuccesses / serverOutcomes : null,
       scanTrend: buckets.map(({ key, label }) => ({
         label,

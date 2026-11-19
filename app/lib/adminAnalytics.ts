@@ -28,6 +28,8 @@ export type AnalyticsData = {
   successfulScans: number;
   failedScans: number;
   clientErrors: number;
+  serverSuccesses: number;
+  serverOutcomes: number;
   serverSuccessRate: number | null;
   scanTrend: ScanBucket[];
   osDistribution: Distribution[];

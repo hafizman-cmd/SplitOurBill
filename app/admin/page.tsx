@@ -1,14 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, CalendarDays, CircleAlert, Lock, LogOut, RotateCw } from 'lucide-react';
 import { KiraKiraLogo } from '../components/ui/logo';
 import {
-  ADMIN_EVENT_PAGE_SIZE, ANALYTICS_RANGES, DEFAULT_ANALYTICS_RANGE,
+  ANALYTICS_RANGES, DEFAULT_ANALYTICS_RANGE,
   type AdminEvent, type AnalyticsData, type AnalyticsRange,
 } from '../lib/adminAnalytics';
-import { formatAuditTime } from '../lib/auditEvents';
+import { formatAuditTime, type AuditFilter } from '../lib/auditEvents';
 import AdminEvents, { controlClass, panelClass } from './AdminEvents';
 import AnalyticsOverview from './AnalyticsOverview';
 import AuditLog from './AuditLog';
@@ -96,6 +96,8 @@ export default function AdminPage() {
 
 function Dashboard({ onLogout, onUnauthorized }: { onLogout: () => void; onUnauthorized: () => void }) {
   const [range, setRange] = useState<AnalyticsRange>(DEFAULT_ANALYTICS_RANGE);
+  const [view, setView] = useState<'overview' | 'events'>('overview');
+  const [filter, setFilter] = useState<AuditFilter>('all');
   const [refreshKey, setRefreshKey] = useState(0);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [logoutError, setLogoutError] = useState('');
@@ -116,6 +118,10 @@ function Dashboard({ onLogout, onUnauthorized }: { onLogout: () => void; onUnaut
   };
 
   const refresh = () => setRefreshKey((value) => value + 1);
+  const openEvents = (nextFilter: AuditFilter) => {
+    setFilter(nextFilter);
+    setView('events');
+  };
 
   return (
     <main className="min-h-screen px-4 py-5 text-slate-100 sm:px-6 sm:py-8">
@@ -134,24 +140,35 @@ function Dashboard({ onLogout, onUnauthorized }: { onLogout: () => void; onUnaut
                 <p className="mt-1 text-sm text-slate-400">Usage and receipt scan health</p>
               </div>
             </div>
-            <label className="flex flex-wrap items-center gap-2 text-sm text-slate-300">
-              <CalendarDays size={17} className="text-slate-400" /> Date range
-              <select value={range} onChange={(event) => setRange(event.target.value as AnalyticsRange)} className={controlClass}>
-                {Object.entries(ANALYTICS_RANGES).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
-              </select>
-            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 text-sm text-slate-300">
+                <CalendarDays size={17} aria-hidden="true" className="text-slate-400" /> Date range
+                <select value={range} onChange={(event) => setRange(event.target.value as AnalyticsRange)} className={controlClass}>
+                  {Object.entries(ANALYTICS_RANGES).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+                </select>
+              </label>
+              <button type="button" onClick={refresh} className={controlClass}><RotateCw size={16} aria-hidden="true" /> Refresh</button>
+            </div>
           </div>
         </header>
 
-        <AnalyticsSection key={range} range={range} refreshKey={refreshKey} onRefresh={refresh} onUnauthorized={onUnauthorized} />
-        <AuditLog range={range} refreshKey={refreshKey} onUnauthorized={onUnauthorized} />
+        <nav aria-label="Admin views" className="grid grid-cols-2 gap-2 sm:flex">
+          <button type="button" onClick={() => setView('overview')} aria-pressed={view === 'overview'} className={`${controlClass} aria-pressed:border-indigo-400 aria-pressed:bg-indigo-500/20 aria-pressed:text-indigo-100`}>Overview</button>
+          <button type="button" onClick={() => setView('events')} aria-pressed={view === 'events'} className={`${controlClass} aria-pressed:border-indigo-400 aria-pressed:bg-indigo-500/20 aria-pressed:text-indigo-100`}>Events</button>
+        </nav>
+
+        {view === 'overview' ? (
+          <AnalyticsSection key={range} range={range} refreshKey={refreshKey} onOpenEvents={openEvents} onUnauthorized={onUnauthorized} />
+        ) : (
+          <AuditLog range={range} filter={filter} onFilterChange={setFilter} refreshKey={refreshKey} onUnauthorized={onUnauthorized} />
+        )}
       </div>
     </main>
   );
 }
 
-function AnalyticsSection({ range, refreshKey, onRefresh, onUnauthorized }: {
-  range: AnalyticsRange; refreshKey: number; onRefresh: () => void; onUnauthorized: () => void;
+function AnalyticsSection({ range, refreshKey, onOpenEvents, onUnauthorized }: {
+  range: AnalyticsRange; refreshKey: number; onOpenEvents: (filter: AuditFilter) => void; onUnauthorized: () => void;
 }) {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -205,9 +222,7 @@ function AnalyticsSection({ range, refreshKey, onRefresh, onUnauthorized }: {
           <span>Malaysia time (MYT)</span>
           {data && <span>· Last updated <time dateTime={data.updatedAt}>{formatAuditTime(data.updatedAt)}</time></span>}
         </div>
-        <button type="button" onClick={onRefresh} className={controlClass}>
-          <RotateCw size={16} className={loading ? 'motion-safe:animate-spin' : ''} /> {loading ? 'Refreshing…' : 'Refresh'}
-        </button>
+        {data && loading && <span className="text-sm text-slate-400">Refreshing…</span>}
       </div>
       {error && (
         <p role="alert" className="flex items-start gap-2 rounded-xl border border-rose-400/30 bg-slate-900 px-4 py-3 text-sm text-rose-200">
@@ -217,8 +232,8 @@ function AnalyticsSection({ range, refreshKey, onRefresh, onUnauthorized }: {
       )}
       {data ? (
         <>
-          <AnalyticsOverview data={data} range={range} />
-          <RecentActivity events={data.recentEvents} />
+          <AnalyticsOverview data={data} range={range} onOpenEvents={onOpenEvents} />
+          <RecentActivity events={data.recentEvents.slice(0, 5)} onViewEvents={() => onOpenEvents('all')} />
         </>
       ) : loading && !error && (
         <p role="status" className={`${panelClass} p-6 text-sm text-slate-300`}>Loading analytics…</p>
@@ -227,34 +242,16 @@ function AnalyticsSection({ range, refreshKey, onRefresh, onUnauthorized }: {
   );
 }
 
-function RecentActivity({ events }: { events: AdminEvent[] }) {
-  const [visible, setVisible] = useState(ADMIN_EVENT_PAGE_SIZE);
-  const heading = useRef<HTMLHeadingElement>(null);
-  const visibleEvents = events.slice(0, visible);
-
+function RecentActivity({ events, onViewEvents }: { events: AdminEvent[]; onViewEvents: () => void }) {
   return (
     <section aria-labelledby="recent-heading" className={`${panelClass} overflow-hidden`}>
-      <div className="border-b border-slate-700/70 px-4 py-4 sm:px-5">
-        <h2 id="recent-heading" ref={heading} tabIndex={-1} className="scroll-mt-6 text-base font-semibold text-white">Recent activity</h2>
-        <p className="mt-1 text-sm text-slate-400">Refreshes every 30 seconds</p>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700/70 px-4 py-4 sm:px-5">
+        <h2 id="recent-heading" className="text-base font-semibold text-white">Recent activity</h2>
+        <button type="button" className={controlClass} onClick={onViewEvents}>View all events</button>
       </div>
       {events.length > 0
-        ? <AdminEvents events={visibleEvents} />
+        ? <AdminEvents events={events} />
         : <p className="px-4 py-8 text-center text-sm text-slate-400">No activity recorded for this range.</p>}
-      {events.length > ADMIN_EVENT_PAGE_SIZE && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-700/70 px-4 py-3 sm:px-5">
-          <p className="text-xs text-slate-400" aria-live="polite">Showing {visibleEvents.length} of {events.length} recent events</p>
-          <div className="flex flex-wrap gap-2">
-            {visible > ADMIN_EVENT_PAGE_SIZE && (
-              <button type="button" className={controlClass} onClick={() => {
-                setVisible(ADMIN_EVENT_PAGE_SIZE);
-                heading.current?.focus();
-              }}>Show less</button>
-            )}
-            {visible < events.length && <button type="button" className={controlClass} onClick={() => setVisible((count) => count + ADMIN_EVENT_PAGE_SIZE)}>Show more</button>}
-          </div>
-        </div>
-      )}
     </section>
   );
 }
