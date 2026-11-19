@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { ArrowRight, ChevronDown, Save, Share2 } from 'lucide-react';
 import type { HistoryEntry, Item, ReceiptCharges, ScanResponse, SplitResult } from './types';
 import {
@@ -590,16 +591,32 @@ export default function Home() {
 
   const currentStep = items.length === 0 ? 0 : people.length === 0 ? 1 : unassignedCount > 0 ? 2 : 3;
 
+  const scrollPastBillGuide = (target: HTMLElement, behavior: ScrollBehavior) => {
+    const guide = billGuideRef.current;
+    if (guide) {
+      const stickyTop = Number.parseFloat(window.getComputedStyle(guide).top);
+      target.style.scrollMarginTop = `${stickyTop + guide.getBoundingClientRect().height + 12}px`;
+    }
+    target.scrollIntoView({ behavior, block: 'start' });
+  };
+
+  const enterItemsManually = () => {
+    flushSync(() => {
+      setDailyLimitOpen(false);
+      setShowUnassignedOnly(false);
+    });
+
+    const input = manualNameInputRef.current;
+    if (!input) return;
+    scrollPastBillGuide(input, 'instant');
+    input.focus({ preventScroll: true });
+  };
+
   const selectStep = (step: number) => {
     if (step === 2) setShowUnassignedOnly(unassignedCount > 0);
     const section = [scannerSectionRef, peopleSectionRef, itemsSectionRef, reviewSectionRef][step]?.current;
     if (!section) return;
-    const guide = billGuideRef.current;
-    if (guide) {
-      const stickyTop = Number.parseFloat(window.getComputedStyle(guide).top);
-      section.style.scrollMarginTop = `${stickyTop + guide.getBoundingClientRect().height + 12}px`;
-    }
-    section.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
+    scrollPastBillGuide(section, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth');
     const target = step === 1 ? section.querySelector('input') : step === 0 ? section.querySelector<HTMLButtonElement>('button[aria-label="Take a receipt photo"]') : section;
     (target?.matches(':enabled') ? target : section).focus({ preventScroll: true });
   };
@@ -800,7 +817,7 @@ export default function Home() {
           scansRemaining={developerMode ? null : scansRemaining}
         />
 
-        <main aria-busy={!storageReady} className="space-y-5 px-4 pb-28 pt-3">
+        <main aria-busy={!storageReady} className="space-y-5 px-4 pt-3">
           <details className="glass-card group">
             <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl px-4 py-2 text-sm [&::-webkit-details-marker]:hidden">
               <span className="font-semibold">Bill Actions</span>
@@ -834,7 +851,7 @@ export default function Home() {
               onOpenCamera={() => setCameraOpen(true)}
             />
 
-            <button type="button" onClick={() => { setShowUnassignedOnly(false); requestAnimationFrame(() => manualNameInputRef.current?.focus()); }} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/15 text-sm font-semibold text-slate-200 hover:bg-white/5">Enter items manually <ArrowRight size={16} /></button>
+            <button type="button" onClick={enterItemsManually} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/15 text-sm font-semibold text-slate-200 hover:bg-white/5">Enter items manually <ArrowRight size={16} /></button>
           </div>
 
           <div ref={peopleSectionRef} tabIndex={-1} aria-label="Add People" className="scroll-mt-28 rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
@@ -991,10 +1008,7 @@ export default function Home() {
         <DailyScanLimitModal
           open={dailyLimitOpen}
           onClose={() => setDailyLimitOpen(false)}
-          onEnterManually={() => {
-            setDailyLimitOpen(false);
-            requestAnimationFrame(() => manualNameInputRef.current?.focus());
-          }}
+          onEnterManually={enterItemsManually}
         />
 
         {pendingAction && <ConfirmModal

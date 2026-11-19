@@ -2,7 +2,7 @@ import { ShieldCheck } from 'lucide-react';
 
 export default function Footer() {
   return (
-    <footer className="mx-auto mt-8 max-w-sm px-6 pb-28 text-center">
+    <footer className="mx-auto mt-5 max-w-sm px-6 pb-28 text-center">
       <details className="mb-4 text-left text-sm leading-relaxed text-slate-300">
         <summary className="flex min-h-11 cursor-pointer items-center justify-center font-semibold text-slate-100">Privacy and data use <span aria-hidden="true" className="ml-2">▾</span></summary>
         <ul className="space-y-2 pb-2">
