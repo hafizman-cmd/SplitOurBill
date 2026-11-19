@@ -12,7 +12,7 @@ export default function Header({
   scansRemaining: number | null;
 }) {
   return (
-    <header className="glass-nav sticky top-[max(0.75rem,env(safe-area-inset-top))] z-50 mx-4 my-3 flex w-auto items-center justify-between gap-2 rounded-full border border-white/15 bg-slate-900/80 p-2.5 text-white backdrop-blur-xl sm:p-3">
+    <header className="glass-nav sticky top-[max(0.75rem,env(safe-area-inset-top))] z-50 mx-4 my-3 flex w-auto items-center justify-between gap-2 p-2.5 text-white sm:p-3">
       <div className="flex shrink-0 items-center gap-2">
         <div className="relative">
           <KiraKiraLogo className="h-8 w-8 shrink-0 sm:h-11 sm:w-11" />

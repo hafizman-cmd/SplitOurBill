@@ -117,7 +117,7 @@ export default function GuestBillView({ bill }: { bill: SharedBill }) {
 
         <main className="w-full pb-8 pt-2">
           <div className="flex w-full flex-col gap-4 sm:gap-5">
-          <section className="glass-card p-5">
+          <section className="bill-panel p-5">
             <h2 className="text-lg font-semibold text-white">Find Your Name</h2>
             <p className="mb-3 mt-1 text-sm text-slate-300">Choose your name to see your share and how to pay.</p>
             <div className="relative">
@@ -155,7 +155,7 @@ export default function GuestBillView({ bill }: { bill: SharedBill }) {
           </section>
 
           {entry && (
-            <section aria-label={`${selected}'s share and payment details`} className="glass-card border-blue-400/25 p-5">
+            <section aria-label={`${selected}'s share and payment details`} className="bill-panel p-5">
               <div aria-live="polite">
                 <h2 className="text-sm font-semibold text-slate-200">{selected}&apos;s share</h2>
                 <p className="mt-3 text-sm text-blue-200">Total to Pay</p>
@@ -180,11 +180,12 @@ export default function GuestBillView({ bill }: { bill: SharedBill }) {
                   )}
                   {hasPaymentDetails && <p className="text-sm leading-relaxed text-slate-300">{paymentInstruction}</p>}
                   {bill.qrPayload && (
-                    <button type="button" onClick={() => setQrExpanded(true)} aria-label="Enlarge DuitNow QR code" className="flex w-full flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm font-semibold text-slate-200 transition hover:border-white/20">
-                      <span className="flex items-center gap-2"><QrCode size={16} /> DuitNow QR</span>
-                      <span className="rounded-xl bg-white p-3"><QRCodeSVG value={bill.qrPayload} size={168} className="h-auto max-w-full" /></span>
-                      <span className="font-medium text-slate-300">Tap to enlarge</span>
-                    </button>
+                    <div className="space-y-3 rounded-2xl bg-slate-950/40 p-4">
+                      <div className="mx-auto w-fit max-w-full rounded-xl bg-white p-3"><QRCodeSVG value={bill.qrPayload} size={168} className="h-auto max-w-full" /></div>
+                      <button type="button" onClick={() => setQrExpanded(true)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-600">
+                        <QrCode aria-hidden="true" size={16} /> Enlarge DuitNow QR
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
@@ -201,7 +202,7 @@ export default function GuestBillView({ bill }: { bill: SharedBill }) {
           )}
 
           {entry && (
-            <section className="glass-card p-5">
+            <section className="bill-panel p-5">
               <details>
                 <summary className="cursor-pointer min-h-11 py-3 text-base font-semibold text-slate-200">{selected}&apos;s item breakdown ({entry.items.length})</summary>
               <div className="mt-2 space-y-1.5">
@@ -236,55 +237,56 @@ export default function GuestBillView({ bill }: { bill: SharedBill }) {
             </section>
           )}
 
-          <details className="glass-card p-5">
+          <details className="bill-panel p-5">
             <summary className="cursor-pointer min-h-11 py-3 text-base font-semibold text-slate-200">View full bill details</summary>
-            <h2 className="mt-4 text-sm font-bold uppercase tracking-[0.12em] text-slate-300">
-              Bill Total
-            </h2>
-            <p className="mt-1 text-3xl font-bold text-white">
-              {money(bill.grandTotal)}
-            </p>
-            {eq(bill.grandTotal) && (
-              <p className="mt-0.5 text-sm font-medium text-slate-300">
-                {eq(bill.grandTotal)} for DuitNow
+            <div className="mt-2 rounded-xl border border-white/10 bg-slate-950/40 p-4">
+              <dl className="grid gap-y-2 text-sm text-slate-300 [&>div]:flex [&>div]:justify-between [&>div]:gap-x-3 [&_dd]:min-w-0 [&_dd]:text-right [&_dd]:tabular-nums [&_dd]:[overflow-wrap:anywhere]">
+                <div>
+                  <dt>Subtotal</dt>
+                  <dd>{money(bill.subtotal)}</dd>
+                </div>
+                {bill.serviceCharge > 0 && (
+                  <div>
+                    <dt>Service Charge ({bill.serviceCharge}%)</dt>
+                    <dd>{money(bill.serviceAmt)}</dd>
+                  </div>
+                )}
+                {bill.tax > 0 && (
+                  <div>
+                    <dt>Tax ({bill.tax}%)</dt>
+                    <dd>{money(bill.taxAmt)}</dd>
+                  </div>
+                )}
+                {bill.discount != null && bill.discount > 0 && (
+                  <div>
+                    <dt>Discount</dt>
+                    <dd>-{money(bill.discount)}</dd>
+                  </div>
+                )}
+                {bill.roundingAdjustment !== 0 && (
+                  <div>
+                    <dt>Rounding Adjustment</dt>
+                    <dd>
+                      {bill.roundingAdjustment > 0 ? '+' : '-'}
+                      {money(Math.abs(bill.roundingAdjustment))}
+                    </dd>
+                  </div>
+                )}
+                <div className="mt-1 flex-wrap items-baseline gap-y-1 border-t border-dashed border-white/25 pt-3">
+                  <dt className="font-semibold text-white">Bill total</dt>
+                  <dd className="ml-auto">
+                    <p className="text-2xl font-bold tracking-tight text-white">{money(bill.grandTotal)}</p>
+                    {eq(bill.grandTotal) && (
+                      <p className="mt-0.5 text-sm font-medium text-slate-300">
+                        {eq(bill.grandTotal)} for DuitNow
+                      </p>
+                    )}
+                  </dd>
+                </div>
+              </dl>
+              <p className="mt-3 text-xs text-slate-300">
+                Split between {bill.people.length} {bill.people.length === 1 ? 'person' : 'people'}
               </p>
-            )}
-            <div className="mt-3 space-y-1 border-t border-white/10 pt-3 text-sm text-slate-300">
-              <div className="flex justify-between">
-                <span>Subtotal</span>
-                <span>{money(bill.subtotal)}</span>
-              </div>
-              {bill.serviceCharge > 0 && (
-                <div className="flex justify-between">
-                  <span>Service Charge ({bill.serviceCharge}%)</span>
-                  <span>{money(bill.serviceAmt)}</span>
-                </div>
-              )}
-              {bill.tax > 0 && (
-                <div className="flex justify-between">
-                  <span>Tax ({bill.tax}%)</span>
-                  <span>{money(bill.taxAmt)}</span>
-                </div>
-              )}
-              {bill.discount != null && bill.discount > 0 && (
-                <div className="flex justify-between">
-                  <span>Discount</span>
-                  <span>-{money(bill.discount)}</span>
-                </div>
-              )}
-              {bill.roundingAdjustment !== 0 && (
-                <div className="flex justify-between">
-                  <span>Rounding Adjustment</span>
-                  <span>
-                    {bill.roundingAdjustment > 0 ? '+' : '-'}
-                    {money(Math.abs(bill.roundingAdjustment))}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span>Split between</span>
-                <span>{bill.people.length} people</span>
-              </div>
             </div>
           </details>
 

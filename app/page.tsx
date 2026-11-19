@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { ArrowRight, ChevronDown, Save, Share2, X } from 'lucide-react';
+import { ArrowRight, ChevronDown, Save, X } from 'lucide-react';
 import type { HistoryEntry, Item, ReceiptCharges, ScanResponse, SplitResult } from './types';
 import {
   HISTORY_STORAGE_KEY,
@@ -90,7 +90,6 @@ export default function Home() {
   const scannerSectionRef = useRef<HTMLDivElement>(null);
   const peopleSectionRef = useRef<HTMLDivElement>(null);
   const reviewSectionRef = useRef<HTMLDivElement>(null);
-  const billGuideRef = useRef<HTMLDivElement>(null);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [cropImage, setCropImage] = useState<string | null>(null);
@@ -642,8 +641,8 @@ export default function Home() {
     setItems((current) => current.map((item) => item.id === id ? { ...item, name, price } : item));
   };
 
-  const assignEveryone = (id: string) => {
-    setItems((current) => current.map((item) => item.id === id ? { ...item, assigned: [...people] } : item));
+  const updateAssignment = (id: string, assignees: string[]) => {
+    setItems((current) => current.map((item) => item.id === id ? { ...item, assigned: assignees } : item));
   };
 
   const assignSelected = (ids: string[], assignees: string[]) => {
@@ -659,15 +658,6 @@ export default function Home() {
 
   const currentStep = items.length === 0 ? 0 : people.length === 0 ? 1 : unassignedCount > 0 ? 2 : 3;
 
-  const scrollPastBillGuide = (target: HTMLElement, behavior: ScrollBehavior) => {
-    const guide = billGuideRef.current;
-    if (guide) {
-      const stickyTop = Number.parseFloat(window.getComputedStyle(guide).top);
-      target.style.scrollMarginTop = `${stickyTop + guide.getBoundingClientRect().height + 12}px`;
-    }
-    target.scrollIntoView({ behavior, block: 'start' });
-  };
-
   const enterItemsManually = () => {
     flushSync(() => {
       setDailyLimitOpen(false);
@@ -676,7 +666,7 @@ export default function Home() {
 
     const input = manualNameInputRef.current;
     if (!input) return;
-    scrollPastBillGuide(input, 'instant');
+    input.scrollIntoView({ behavior: 'instant', block: 'start' });
     input.focus({ preventScroll: true });
   };
 
@@ -684,24 +674,9 @@ export default function Home() {
     if (step === 2) setShowUnassignedOnly(unassignedCount > 0);
     const section = [scannerSectionRef, peopleSectionRef, itemsSectionRef, reviewSectionRef][step]?.current;
     if (!section) return;
-    scrollPastBillGuide(section, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth');
+    section.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
     const target = step === 1 ? section.querySelector('input') : step === 0 ? section.querySelector<HTMLButtonElement>('button[aria-label="Take a receipt photo"]') : section;
     (target?.matches(':enabled') ? target : section).focus({ preventScroll: true });
-  };
-
-  const toggleAssignment = (itemId: string, person: string) => {
-    setItems((prev) =>
-      prev.map((it) =>
-        it.id === itemId
-          ? {
-              ...it,
-              assigned: it.assigned.includes(person)
-                ? it.assigned.filter((p) => p !== person)
-                : [...it.assigned, person],
-            }
-          : it,
-      ),
-    );
   };
 
   const cancelRateRequest = () => {
@@ -886,7 +861,7 @@ export default function Home() {
         />
 
         <main aria-busy={!storageReady} className="space-y-5 px-4 pt-3">
-          <details className="glass-card group">
+          <details className="group rounded-2xl border border-white/10">
             <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl px-4 py-2 text-sm [&::-webkit-details-marker]:hidden">
               <span className="font-semibold">Bill Actions</span>
               <span role="status" className={`min-w-0 flex-1 text-right text-xs ${saveState === 'error' ? 'font-semibold text-amber-200' : 'text-slate-300'}`}>
@@ -905,22 +880,19 @@ export default function Home() {
               {activeHistoryId && <p className="text-sm text-slate-300">This bill is also in History. Its saved copy updates as you edit.</p>}
             </div>
           </details>
-          <div ref={billGuideRef} className="sticky top-[calc(max(0.75rem,env(safe-area-inset-top))+74px)] z-40 !mt-3 sm:top-[calc(max(0.75rem,env(safe-area-inset-top))+78px)]">
-            <BillFlowGuide currentStep={currentStep} hasItems={items.length > 0} hasPeople={people.length > 0} unassignedCount={unassignedCount} onSelectStep={selectStep} />
-          </div>
+          <BillFlowGuide currentStep={currentStep} hasItems={items.length > 0} hasPeople={people.length > 0} unassignedCount={unassignedCount} onSelectStep={selectStep} />
 
-          <div ref={scannerSectionRef} tabIndex={-1} aria-label="Scan or Add Items" className="scroll-mt-28 rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+          <div ref={scannerSectionRef} tabIndex={-1} aria-label="Scan or Add Items" className="bill-scroll-target rounded-2xl">
             <ReceiptScanner
               scanning={scanning}
               scanError={scanError}
               onSelect={handleFileSelected}
               onOpenCamera={() => setCameraOpen(true)}
+              onEnterManually={enterItemsManually}
             />
-
-            <button type="button" onClick={enterItemsManually} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/15 text-sm font-semibold text-slate-200 hover:bg-white/5">Enter items manually <ArrowRight size={16} /></button>
           </div>
 
-          <div ref={peopleSectionRef} tabIndex={-1} aria-label="Add People" className="scroll-mt-28 rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+          <div ref={peopleSectionRef} tabIndex={-1} aria-label="Add People" className="bill-scroll-target rounded-2xl">
             <PeopleManager
               people={people}
               onAdd={addPerson}
@@ -928,25 +900,24 @@ export default function Home() {
             />
           </div>
 
-          <div ref={itemsSectionRef} tabIndex={-1} aria-label="Bill items and assignments" className="scroll-mt-24 rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+          <div ref={itemsSectionRef} tabIndex={-1} aria-label="Bill items and assignments" className="bill-scroll-target rounded-2xl">
             <ItemList
               items={items}
               people={people}
               onAddManualItem={addManualItem}
               onRemoveItem={removeItem}
               onUpdateItem={updateItem}
-              onAssignEveryone={assignEveryone}
+              onUpdateAssignment={updateAssignment}
               onAssignSelected={assignSelected}
               showUnassignedOnly={showUnassignedOnly}
               onFilterChange={setShowUnassignedOnly}
-              onToggleAssignment={toggleAssignment}
               currency={currency}
               myrRate={myrRate}
               manualNameInputRef={manualNameInputRef}
             />
           </div>
 
-          <div ref={reviewSectionRef} tabIndex={-1} aria-label="Review charges and split" className="scroll-mt-28 space-y-5 rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+          <div id="bill-charges" tabIndex={-1} aria-label="Charges and currency" className="bill-scroll-target rounded-2xl">
             <ChargesSection
               serviceChargeInput={serviceChargeInput}
               taxInput={taxInput}
@@ -971,7 +942,9 @@ export default function Home() {
               onFetchRate={() => void fetchExchangeRate()}
               fetchingRate={fetchingRate}
             />
+          </div>
 
+          <div ref={reviewSectionRef} tabIndex={-1} aria-label="Review split" className="bill-scroll-target rounded-2xl">
             <SummarySection
               unassignedCount={unassignedCount}
               people={people}
@@ -981,6 +954,9 @@ export default function Home() {
               onResetPaid={resetPaidStatus}
               paymentQrCode={paymentQrCode}
               onShowQr={() => setQrModalOpen(true)}
+              onShare={items.length > 0 ? openShareModal : undefined}
+              creatingShare={creatingShare}
+              receiptChargesNeedReview={receiptChargesNeedReview}
               currency={currency}
               myrRate={myrRate}
             />
@@ -997,13 +973,11 @@ export default function Home() {
 
         <button
           type="button"
-          onClick={() => currentStep === 3 && !calc.issue ? void openShareModal() : selectStep(currentStep)}
-          disabled={currentStep === 3 && creatingShare}
-          aria-busy={currentStep === 3 && creatingShare}
-          className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 z-50 flex h-11 -translate-x-1/2 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-blue-400/30 bg-gradient-to-r from-blue-700 to-blue-600 px-7 text-sm font-semibold text-white shadow-xl shadow-blue-500/35 backdrop-blur-md transition-all active:scale-95"
+          onClick={() => selectStep(currentStep)}
+          className="glass-action fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 z-50 flex min-h-11 -translate-x-1/2 items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 text-sm font-semibold text-white transition active:scale-95"
         >
-          {currentStep === 3 && !calc.issue ? <Share2 size={16} /> : <ArrowRight size={16} />}
-          {['Scan or Add Items', 'Add People', `Assign ${unassignedCount} Item${unassignedCount === 1 ? '' : 's'}`, calc.issue ? 'Review Split' : creatingShare ? 'Creating link…' : 'Share Summary'][currentStep]}
+          <ArrowRight aria-hidden="true" size={16} />
+          {['Scan or add items', 'Add people', `Assign ${unassignedCount} remaining item${unassignedCount === 1 ? '' : 's'}`, 'Review split'][currentStep]}
         </button>
 
         <Footer />

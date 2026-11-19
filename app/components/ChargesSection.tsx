@@ -60,7 +60,7 @@ export default function ChargesSection({
           : 'Saved rate with unknown source. Refresh for a dated reference rate.';
 
   return (
-    <section className="glass-card p-5">
+    <section className="bill-panel p-5">
       <h2 className="mb-3 flex items-center gap-2 text-base font-semibold tracking-tight text-white">
         <CreditCard className="h-4 w-4 text-blue-400" />
         Charges

@@ -78,13 +78,20 @@
 
 @layer components {
   .glass-card,
-  .glass-nav,
   .glass-bar {
     @apply rounded-2xl border-x border-white/10 border-t border-white/20 border-b border-white/5 bg-slate-900/75 shadow-xl shadow-black/20 backdrop-blur-xl;
   }
 
   .glass-nav {
-    @apply rounded-full bg-slate-950/65 backdrop-blur-lg;
+    @apply rounded-full border border-white/15 border-t-white/25 bg-slate-900 shadow-lg shadow-black/20;
+  }
+
+  .glass-action {
+    @apply border border-blue-400/30 border-t-blue-300/50 bg-blue-800 shadow-lg shadow-black/25 hover:bg-blue-700;
+  }
+
+  .bill-panel {
+    @apply rounded-2xl border border-white/10 bg-slate-900;
   }
 
   .glass-bar {
@@ -94,6 +101,30 @@
   .glass-input {
     @apply min-h-11 rounded-xl border border-white/25 bg-white/5 px-4 py-2.5 text-base text-white placeholder:text-slate-400 transition-all focus:border-blue-300 focus:outline-none;
   }
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  @media (not (prefers-reduced-transparency: reduce)) {
+    .glass-nav {
+      background-color: rgb(15 23 42 / 0.62);
+      -webkit-backdrop-filter: blur(20px) saturate(1.4);
+      backdrop-filter: blur(20px) saturate(1.4);
+    }
+
+    .glass-action {
+      background-color: rgb(30 64 175 / 0.85);
+      -webkit-backdrop-filter: blur(16px) saturate(1.4);
+      backdrop-filter: blur(16px) saturate(1.4);
+    }
+
+    .glass-action:hover {
+      background-color: rgb(29 78 216 / 0.9);
+    }
+  }
+}
+
+.bill-scroll-target {
+  scroll-margin-top: calc(max(0.75rem, env(safe-area-inset-top)) + 5rem);
 }
 
 :is(button, a, input, select, textarea, summary, [tabindex]):focus-visible:not([role='dialog']) {

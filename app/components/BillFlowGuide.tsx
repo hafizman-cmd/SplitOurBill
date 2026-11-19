@@ -24,7 +24,7 @@ export default function BillFlowGuide({ currentStep, hasItems, hasPeople, unassi
   ];
 
   return (
-    <section aria-label="Your bill progress" className="glass-card bg-slate-950/95 px-2 py-2">
+    <section aria-label="Your bill progress" className="bill-panel px-2 py-2">
       <nav aria-label="Bill steps" className="relative">
         <div aria-hidden="true" className="pointer-events-none absolute inset-x-[12.5%] top-[19px] h-0.5 bg-slate-700">
           <div className="h-full origin-left bg-blue-400 transition-transform duration-500 ease-out motion-reduce:transition-none" style={{ transform: `scaleX(${currentStep / (steps.length - 1)})` }} />

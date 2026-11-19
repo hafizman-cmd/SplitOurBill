@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2, Circle, Layers, QrCode, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Circle, Layers, QrCode, RefreshCw, Share2 } from 'lucide-react';
 import type { SplitResult } from '../types';
 import {
   formatMoney,
@@ -17,6 +17,9 @@ type Props = {
   onResetPaid: () => void;
   paymentQrCode: string;
   onShowQr: () => void;
+  onShare?: () => Promise<void>;
+  creatingShare: boolean;
+  receiptChargesNeedReview: boolean;
   currency: CurrencyCode;
   myrRate: number;
 };
@@ -30,6 +33,9 @@ export default function SummarySection({
   onResetPaid,
   paymentQrCode,
   onShowQr,
+  onShare,
+  creatingShare,
+  receiptChargesNeedReview,
   currency,
   myrRate,
 }: Props) {
@@ -39,15 +45,20 @@ export default function SummarySection({
     `${n > 0 ? '+' : n < 0 ? '-' : ''}${money(Math.abs(n))}`;
   const splitReady = people.length > 0 && unassignedCount === 0 && !calc.issue;
   const heading = (
-    <h2 className="mb-3 flex items-center gap-2 text-base font-semibold tracking-tight text-white">
-      <Layers className="h-4 w-4 text-blue-400" />
-      <span>Summary</span>
-    </h2>
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3">
+      <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight text-white">
+        <Layers aria-hidden="true" className="h-4 w-4 text-blue-400" />
+        Summary
+      </h2>
+      <a href="#bill-charges" className="inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-semibold text-blue-200 transition hover:bg-white/5">
+        Edit charges
+      </a>
+    </div>
   );
 
   if (calc.issue === 'invalidAmounts') {
     return (
-      <section className="glass-card p-5">
+      <section className="bill-panel p-5">
         {heading}
         <p role="status" className="rounded-2xl border border-amber-300/25 bg-amber-400/10 p-4 text-sm text-amber-100">
           Check the bill amounts. Amounts and totals can be at most 1 billion in the receipt currency. Use 0–100% for service charge and tax, and use negative values only for rounding.
@@ -57,37 +68,15 @@ export default function SummarySection({
   }
 
   return (
-    <section className="glass-card p-5">
+    <section className="bill-panel p-5">
       {heading}
-      {splitReady && (
-        <p className="mb-2 text-sm text-slate-300">Payment marks are a manual record on this device. The app cannot verify bank transfers.</p>
-      )}
-      {splitReady && (
-        <div className="mb-3 flex items-center justify-between rounded-xl border border-white/10 bg-slate-950/30 px-3 py-2 text-sm text-slate-300 backdrop-blur-md">
-          <span>
-            Marked as paid: {money(people.reduce((total, person) =>
-              paidStatus[person] ? total + (calc.perPerson[person]?.final ?? 0) : total,
-            0))} / {money(calc.grandTotal)}
-          </span>
-          <button
-            type="button"
-            onClick={onResetPaid}
-            disabled={!people.some((person) => paidStatus[person])}
-            aria-label="Reset payment statuses"
-            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <RefreshCw size={14} />
-          </button>
-        </div>
-      )}
-
-      <div className="mb-3 rounded-2xl border border-blue-300/20 bg-blue-500/10 p-4">
+      <div className="rounded-2xl bg-blue-500/10 p-4">
         <p className="text-sm font-medium text-blue-100">Grand Total</p>
         <p className="mt-1 text-3xl font-bold tracking-tight text-white tabular-nums">{money(calc.grandTotal)}</p>
         {eq(calc.grandTotal) && <p className="mt-1 text-sm text-blue-100/80">{eq(calc.grandTotal)}</p>}
       </div>
 
-      <div className="space-y-1.5 rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-sm">
+      <div className="divide-y divide-white/10 px-1 text-sm [&>div]:gap-3 [&>div]:py-2">
         <div className="flex justify-between text-slate-300">
           <span>Subtotal</span>
           <span className="flex flex-col items-end leading-tight">
@@ -134,6 +123,41 @@ export default function SummarySection({
         )}
 
       </div>
+
+      {splitReady && onShare && (
+        <button
+          type="button"
+          onClick={() => void onShare()}
+          disabled={creatingShare}
+          aria-busy={creatingShare}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:opacity-60"
+        >
+          {receiptChargesNeedReview ? <Layers aria-hidden="true" size={16} /> : <Share2 aria-hidden="true" size={16} />}
+          {creatingShare ? 'Creating link…' : receiptChargesNeedReview ? 'Review receipt charges' : 'Share summary'}
+        </button>
+      )}
+
+      {splitReady && (
+        <div className="mt-5 border-t border-white/10 pt-3">
+          <div className="flex items-center justify-between gap-2 text-sm font-semibold text-slate-200">
+            <span>
+              Marked as paid: {money(people.reduce((total, person) =>
+                paidStatus[person] ? total + (calc.perPerson[person]?.final ?? 0) : total,
+              0))} / {money(calc.grandTotal)}
+            </span>
+            <button
+              type="button"
+              onClick={onResetPaid}
+              disabled={!people.some((person) => paidStatus[person])}
+              aria-label="Reset payment statuses"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <RefreshCw size={14} />
+            </button>
+          </div>
+          <p className="text-sm text-slate-300">Payment marks are a manual record on this device. The app cannot verify bank transfers.</p>
+        </div>
+      )}
 
       <div className="mt-4 space-y-3">
         {calc.issue === 'zeroSubtotal' ? (
@@ -188,7 +212,7 @@ export default function SummarySection({
                     aria-label={paid ? `Mark ${p} as unpaid` : `Mark ${p} as paid`}
                     className={`flex items-center gap-1.5 min-h-11 rounded-xl border px-3 py-1 text-sm font-semibold transition active:scale-95 ${
                       paid
-                        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200 backdrop-blur-md hover:bg-emerald-500/20'
+                        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20'
                         : 'border-white/15 bg-white/5 text-slate-200 shadow-sm hover:border-white/25 hover:bg-white/10 active:bg-white/15'
                     }`}
                   >
