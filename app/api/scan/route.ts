@@ -3,6 +3,7 @@ import { ApiError, GoogleGenAI } from '@google/genai';
 import { getScanAllowance, reserveScan, scanIdentity, settleScan } from '@/lib/scan-limiter';
 import { isAdminRequest } from '@/lib/adminAuth';
 import { recordScanEvent } from '@/lib/audit';
+import { readRequestBody } from '@/lib/requestBody';
 
 export const runtime = 'nodejs';
 
@@ -12,7 +13,7 @@ const MAX_SCAN_BODY_BYTES = MAX_IMAGE_CHARS + 1024;
 
 export async function GET(req: NextRequest) {
   try {
-    const developer = isAdminRequest(req);
+    const developer = await isAdminRequest(req);
     const { remaining, resetsAt } = await getScanAllowance(scanIdentity(req));
     return NextResponse.json({ remaining, resetsAt, developer }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {
@@ -259,30 +260,6 @@ async function scanWithGroq(image: { mimeType: string; data: string }): Promise<
   return content;
 }
 
-async function readScanBody(req: NextRequest): Promise<string | null> {
-  if (Number(req.headers.get('content-length')) > MAX_SCAN_BODY_BYTES) return null;
-  const reader = req.body?.getReader();
-  if (!reader) return '';
-
-  const decoder = new TextDecoder();
-  let size = 0;
-  let body = '';
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) return body + decoder.decode();
-      size += value.byteLength;
-      if (size > MAX_SCAN_BODY_BYTES) {
-        void reader.cancel().catch(() => {});
-        return null;
-      }
-      body += decoder.decode(value, { stream: true });
-    }
-  } finally {
-    reader.releaseLock();
-  }
-}
-
 export async function POST(req: NextRequest) {
   const identity = scanIdentity(req);
   let reservation: string | null = null;
@@ -316,7 +293,7 @@ export async function POST(req: NextRequest) {
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       req.headers.get('x-real-ip') ||
       'unknown_ip';
-    const developer = isAdminRequest(req);
+    const developer = await isAdminRequest(req);
     if (!developer && isRateLimited(ip)) {
       return respond(
         { error: 'Too many scans. Please wait a minute and try again.' },
@@ -333,7 +310,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const rawBody = await readScanBody(req).catch(() => '');
+    const rawBody = await readRequestBody(req, MAX_SCAN_BODY_BYTES).catch(() => '');
     if (rawBody === null) {
       return respond(
         { error: 'The scan request is too large. Please use a smaller photo.' },

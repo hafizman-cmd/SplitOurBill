@@ -28,7 +28,7 @@ function brandDistribution(counts: Map<string, number>): Distribution[] {
 }
 
 export async function GET(request: NextRequest) {
-  if (!isAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  if (!(await isAdminRequest(request))) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
 
   const range = parseAnalyticsRange(request.nextUrl.searchParams.get('range'));
   if (!range) return NextResponse.json({ error: 'Invalid date range.' }, { status: 400 });

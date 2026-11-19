@@ -70,15 +70,15 @@ app/
 
 ## Security Notes
 
-### Reset admin and developer access
+### Admin and developer access
 
-Admin and developer mode share the same login. Keep `ADMIN_PASSWORD` unchanged and set `ADMIN_SESSION_RESET_KEY` to a new unique value in your hosting environment, then redeploy or restart the server. Every existing admin and developer login will be rejected on its next protected request. You can log in again with the same password.
+Admin and developer mode share the same login. Use a long, unique `ADMIN_PASSWORD`. Production authentication requires a shared Turso database. The app creates the `admin_login_limit` and `admin_sessions` tables and expiry index on first use.
 
-For local development, set `ADMIN_SESSION_RESET_KEY` in your gitignored `.env` and restart the dev server. Changing only your local environment does not revoke logins on the hosted app. Use the same reset key across all server instances, choose a fresh value each time, and never restore an old value, which could make old cookies valid again.
+Login attempts share a limit of 10 submissions per 15-minute window across visitors and server instances. Sessions expire after eight hours, and signing out revokes the current session. After deploying this session update, sign in again to replace older cookies.
 
-Deploying the session reset support also invalidates all cookies issued by the previous version, even if no reset key is configured. This setting is server-side only; never prefix it with `NEXT_PUBLIC_`.
+To revoke all admin and developer sessions, set `ADMIN_SESSION_RESET_KEY` to a fresh random value in the server environment and redeploy or restart. Use the same new key on every server instance and keep it server-side. To revoke hosted sessions, change the key on the host. Changing `ADMIN_PASSWORD` also revokes existing sessions.
 
-Both login forms request `autocomplete="off"`, but browsers and password managers can ignore it. On a borrowed phone, decline any save-password prompt, log out after testing, and remove any saved credential from the browser/password manager. Revoking sessions does not delete saved passwords; a saved password can be used to log in again. If the password was saved and cannot be removed, change `ADMIN_PASSWORD` too.
+On a borrowed device, decline any save-password prompt, sign out after use, and remove any saved credential from the browser or password manager. Change `ADMIN_PASSWORD` if a saved copy could still be accessed.
 
 - The API key lives only in `.env` (gitignored) and is used server-side only.
 - `/api/scan` rate-limits requests per IP (10/min) and enforces a 30s upstream timeout.

@@ -62,7 +62,7 @@ function parseDeviceBrand(
 export async function POST(request: NextRequest) {
   if (!hasTursoConfiguration) {
     return NextResponse.json(
-      { success: false, error: 'Telemetry database is not configured.' },
+      { success: false, error: 'Could not record telemetry.' },
       { status: 500 },
     );
   }
@@ -122,12 +122,10 @@ export async function POST(request: NextRequest) {
       ],
     });
     return NextResponse.json({ success: true, id }, { status: 200 });
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to record event';
-    console.error('[TURSO TELEMETRY INSERT ERROR]:', errorMessage);
+  } catch {
+    console.error('[telemetry] Could not record event.');
     return NextResponse.json(
-      { success: false, error: errorMessage },
+      { success: false, error: 'Could not record telemetry.' },
       { status: 500 },
     );
   }

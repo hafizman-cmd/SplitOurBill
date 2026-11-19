@@ -9,7 +9,7 @@ import { analyticsWindow, parseAnalyticsRange } from '@/lib/adminAnalyticsWindow
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
-  if (!isAdminRequest(request)) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+  if (!(await isAdminRequest(request))) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   const filter = request.nextUrl.searchParams.get('filter') ?? 'all';
   if (!Object.hasOwn(AUDIT_FILTERS, filter)) return NextResponse.json({ error: 'Invalid filter.' }, { status: 400 });
   const range = parseAnalyticsRange(request.nextUrl.searchParams.get('range') ?? 'all');
