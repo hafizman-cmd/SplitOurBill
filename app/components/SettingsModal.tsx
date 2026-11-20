@@ -4,8 +4,12 @@ import Modal from './Modal';
 import DeveloperSettings from './DeveloperSettings';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Trash2, Upload, X } from 'lucide-react';
+import { Download, Loader2, Trash2, Upload, X } from 'lucide-react';
 import { compressImage, readQrPayload, readQrPayloadFromFile } from '../lib/utils';
+
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<{ outcome: 'accepted' | 'dismissed' }>;
+};
 
 type Props = {
   open: boolean;
@@ -36,6 +40,32 @@ export default function SettingsModal({
   const [settingsQrDraft, setSettingsQrDraft] = useState('');
   const [settingsQrPayloadDraft, setSettingsQrPayloadDraft] = useState('');
   const [qrProcessing, setQrProcessing] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [installed, setInstalled] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [showInstallInstructions, setShowInstallInstructions] = useState(false);
+
+  useEffect(() => {
+    setInstalled(window.matchMedia('(display-mode: standalone)').matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true ||
+      document.referrer.startsWith('android-app://'));
+    setIsIOS(/iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+    const onPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+    };
+    const onInstalled = () => {
+      setInstalled(true);
+      setInstallPrompt(null);
+    };
+    window.addEventListener('beforeinstallprompt', onPrompt);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onPrompt);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -52,6 +82,23 @@ export default function SettingsModal({
 
   const save = () => {
     onSave(settingsDraft.trim(), settingsQrDraft, settingsQrPayloadDraft);
+  };
+
+  const installApp = async () => {
+    if (installPrompt) {
+      setInstallPrompt(null);
+      try {
+        const choice = await installPrompt.prompt();
+        if (choice.outcome === 'accepted') {
+          setInstalled(true);
+          return;
+        }
+      } catch {
+        setShowInstallInstructions(true);
+        return;
+      }
+    }
+    setShowInstallInstructions(true);
   };
 
   const handleQrSelected = async (file: File) => {
@@ -218,6 +265,20 @@ export default function SettingsModal({
             Save
           </button>
         </div>
+        {(!installed || !isIOS) && (
+          <details className="mt-4 border-t border-white/10 pt-2">
+            <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold">Install Kira-Kira</summary>
+            <div className="flex flex-wrap gap-2 text-sm">
+              {!installed && <button type="button" onClick={() => void installApp()} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 font-semibold text-blue-200 hover:bg-white/10">
+                <Download size={16} />Install app
+              </button>}
+              {!isIOS && <a href="/kira-kira.apk" download="Kira-Kira.apk" className="inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-blue-200 hover:bg-white/10">Download Android APK</a>}
+            </div>
+            {showInstallInstructions && !installed && <p role="status" className="mt-2 text-sm text-slate-300">
+              {isIOS ? 'In Safari, tap Share, then Add to Home Screen.' : 'Open your browser menu and choose Install app or Add to Home Screen.'}
+            </p>}
+          </details>
+        )}
         <DeveloperSettings developerMode={developerMode} scanning={scanning} onDeveloperModeChange={onDeveloperModeChange} />
       </div>
     </Modal>

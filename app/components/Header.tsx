@@ -1,5 +1,4 @@
-import Link from 'next/link';
-import { BarChart3, History, Settings, Sparkles } from 'lucide-react';
+import { History, Settings, Sparkles } from 'lucide-react';
 import { KiraKiraLogo } from './ui/logo';
 
 export default function Header({
@@ -31,13 +30,6 @@ export default function Header({
         )}
       </div>
       <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
-        <Link
-          href="/admin"
-          aria-label="Open analytics admin"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 sm:h-11 sm:w-11"
-        >
-          <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-        </Link>
         <button
           onClick={onOpenHistory}
           aria-label="Open receipt history"

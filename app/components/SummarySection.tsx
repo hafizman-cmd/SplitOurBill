@@ -1,7 +1,8 @@
 'use client';
 
 import { CheckCircle2, Circle, Layers, QrCode, RefreshCw, Share2 } from 'lucide-react';
-import type { SplitResult } from '../types';
+import type { PaymentMarks, SplitResult } from '../types';
+import { paymentMark, paymentStatus } from '../lib/paymentMarks';
 import {
   formatMoney,
   formatMyrEquivalent,
@@ -12,13 +13,12 @@ type Props = {
   unassignedCount: number;
   people: string[];
   calc: SplitResult;
-  paidStatus: Record<string, boolean>;
-  onTogglePaid: (person: string) => void;
+  paidStatus: PaymentMarks;
+  onSetPaid: (person: string, paid: boolean) => void;
   onResetPaid: () => void;
   paymentQrCode: string;
   onShowQr: () => void;
-  onShare?: () => Promise<void>;
-  creatingShare: boolean;
+  onShare?: () => void;
   receiptChargesNeedReview: boolean;
   currency: CurrencyCode;
   myrRate: number;
@@ -29,12 +29,11 @@ export default function SummarySection({
   people,
   calc,
   paidStatus,
-  onTogglePaid,
+  onSetPaid,
   onResetPaid,
   paymentQrCode,
   onShowQr,
   onShare,
-  creatingShare,
   receiptChargesNeedReview,
   currency,
   myrRate,
@@ -44,6 +43,12 @@ export default function SummarySection({
   const signedMoney = (n: number) =>
     `${n > 0 ? '+' : n < 0 ? '-' : ''}${money(Math.abs(n))}`;
   const splitReady = people.length > 0 && unassignedCount === 0 && !calc.issue;
+  const payments = people.map((person) => {
+    const entry = calc.perPerson[person];
+    const mark = Object.hasOwn(paidStatus, person) ? paidStatus[person] : undefined;
+    const status = paymentStatus(mark, paymentMark(entry.final, currency, myrRate));
+    return { person, entry, mark, status };
+  });
   const heading = (
     <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3">
       <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight text-white">
@@ -94,7 +99,7 @@ export default function SummarySection({
           </div>
         )}
         <div className="flex justify-between text-slate-300">
-          <span>Service Charge ({calc.serviceCharge}%)</span>
+          <span>Service Charge{calc.serviceCharge > 0 ? ` (${calc.serviceCharge}%)` : ''}</span>
           <span className="flex flex-col items-end leading-tight">
             <span>{money(calc.serviceAmt)}</span>
             {eq(calc.serviceAmt) && (
@@ -105,7 +110,7 @@ export default function SummarySection({
           </span>
         </div>
         <div className="flex justify-between text-slate-300">
-          <span>Tax ({calc.tax}%)</span>
+          <span>Tax{calc.tax > 0 ? ` (${calc.tax}%)` : ''}</span>
           <span className="flex flex-col items-end leading-tight">
             <span>{money(calc.taxAmt)}</span>
             {eq(calc.taxAmt) && (
@@ -127,13 +132,11 @@ export default function SummarySection({
       {splitReady && onShare && (
         <button
           type="button"
-          onClick={() => void onShare()}
-          disabled={creatingShare}
-          aria-busy={creatingShare}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-600 disabled:opacity-60"
+          onClick={onShare}
+          className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-600"
         >
           {receiptChargesNeedReview ? <Layers aria-hidden="true" size={16} /> : <Share2 aria-hidden="true" size={16} />}
-          {creatingShare ? 'Creating link…' : receiptChargesNeedReview ? 'Review receipt charges' : 'Share summary'}
+          {receiptChargesNeedReview ? 'Review receipt charges' : 'Share summary'}
         </button>
       )}
 
@@ -141,14 +144,14 @@ export default function SummarySection({
         <div className="mt-5 border-t border-white/10 pt-3">
           <div className="flex items-center justify-between gap-2 text-sm font-semibold text-slate-200">
             <span>
-              Marked as paid: {money(people.reduce((total, person) =>
-                paidStatus[person] ? total + (calc.perPerson[person]?.final ?? 0) : total,
+              Marked as paid: {money(payments.reduce((total, { entry, status }) =>
+                status === 'paid' ? total + entry.final : total,
               0))} / {money(calc.grandTotal)}
             </span>
             <button
               type="button"
               onClick={onResetPaid}
-              disabled={!people.some((person) => paidStatus[person])}
+              disabled={!payments.some(({ mark }) => mark)}
               aria-label="Reset payment statuses"
               className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -165,9 +168,9 @@ export default function SummarySection({
             This bill has a charge but a zero item subtotal. To split a charge on its own, add it as an item, assign it to the people who owe it, and remove the original charge or rounding adjustment.
           </p>
         ) : unassignedCount > 0 ? <p role="status" className="rounded-2xl border border-amber-300/25 bg-amber-400/10 p-4 text-sm text-amber-100">Split incomplete: {unassignedCount} item(s) still need an owner. Assign every item to see final amounts and share the bill.</p> : people.length > 0 ? (
-          people.map((p) => {
-            const entry = calc.perPerson[p];
-            const paid = paidStatus[p] ?? false;
+          payments.map(({ person: p, entry, mark, status }) => {
+            const paid = status === 'paid';
+            const needsReview = status === 'review';
             const initial = p.charAt(0).toUpperCase();
             return (
               <div
@@ -175,7 +178,7 @@ export default function SummarySection({
                 className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4 ring-1 transition ${
                   paid
                   ? 'bg-emerald-400/10 text-slate-300 ring-emerald-200/30'
-                    : 'border border-white/10 bg-slate-950/30 ring-0'
+                    : needsReview ? 'border border-amber-400/30 bg-amber-400/5 ring-0' : 'border border-white/10 bg-slate-950/30 ring-0'
                 }`}
               >
                 <div className="flex min-w-0 flex-1 basis-36 items-center gap-3">
@@ -186,6 +189,14 @@ export default function SummarySection({
                     <p className={`break-words text-base font-semibold ${paid ? 'text-slate-300 line-through' : 'text-white'}`}>
                       {p}
                     </p>
+                    {needsReview && (
+                      <p className="mt-1 text-sm text-amber-200">
+                        {typeof mark === 'object'
+                          ? `Previously marked paid at ${formatMoney(mark.amount, mark.currency)}${mark.myrAmount === undefined ? '' : ` (${formatMoney(mark.myrAmount, 'MYR')})`}. `
+                          : 'This payment was marked before amounts were recorded. '}
+                        Check the payment against the current share.
+                      </p>
+                    )}
                     <p className="text-sm text-slate-300">
                       {entry.items.length > 0
                         ? `${entry.items.length} item(s) - ${formatMoney(
@@ -205,11 +216,12 @@ export default function SummarySection({
                       {eq(entry.final)} for DuitNow
                     </p>
                   )}
-                  <button
+                  {(entry.final > 0 || paid || needsReview) && <button
                     type="button"
-                    onClick={() => onTogglePaid(p)}
+                    onClick={() => onSetPaid(p, !paid)}
                     aria-pressed={paid}
-                    aria-label={paid ? `Mark ${p} as unpaid` : `Mark ${p} as paid`}
+                    aria-label={paid ? `Mark ${p} as unpaid` : needsReview ? `Confirm ${p}'s current share is paid` : `Mark ${p} as paid`}
+                    disabled={entry.final === 0 && !paid}
                     className={`flex items-center gap-1.5 min-h-11 rounded-xl border px-3 py-1 text-sm font-semibold transition active:scale-95 ${
                       paid
                         ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20'
@@ -221,8 +233,9 @@ export default function SummarySection({
                     ) : (
                       <Circle className="w-3.5 h-3.5 text-slate-300" />
                     )}
-                    {paid ? 'Paid' : 'Mark Paid'}
-                  </button>
+                    {paid ? 'Paid' : needsReview ? 'Confirm paid' : 'Mark Paid'}
+                  </button>}
+                  {needsReview && <button type="button" onClick={() => onSetPaid(p, false)} aria-label={`Clear ${p}'s payment mark`} className="min-h-11 rounded-lg px-2 text-sm text-amber-200 hover:bg-white/10">Clear mark</button>}
                 </div>
               </div>
             );

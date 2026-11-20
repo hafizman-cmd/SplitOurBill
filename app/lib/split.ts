@@ -146,8 +146,8 @@ export function buildShareText(
   lines.push(DIVIDER);
   lines.push(`Subtotal: ${amt(calc.subtotal)}`);
   if (calc.discount > 0) lines.push(`Discount: -${amt(calc.discount)}`);
-  lines.push(`Service Charge (${calc.serviceCharge}%): ${amt(calc.serviceAmt)}`);
-  lines.push(`Tax (${calc.tax}%): ${amt(calc.taxAmt)}`);
+  lines.push(`Service Charge${calc.serviceCharge > 0 ? ` (${calc.serviceCharge}%)` : ''}: ${amt(calc.serviceAmt)}`);
+  lines.push(`Tax${calc.tax > 0 ? ` (${calc.tax}%)` : ''}: ${amt(calc.taxAmt)}`);
   if (calc.roundingAdjustment !== 0) {
     lines.push(`Rounding Adjustment: ${amt(calc.roundingAdjustment)}`);
   }

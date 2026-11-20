@@ -1,4 +1,4 @@
-import type { HistoryEntry, Item, ReceiptCharges, ReceiptSnapshot } from '../types';
+import type { HistoryEntry, Item, PaymentMarks, ReceiptCharges, ReceiptSnapshot } from '../types';
 import { CURRENCIES, isExchangeRateSource, parseMyrRate, type CurrencyCode, type ExchangeRateSource } from './currency';
 
 export type BillDraft = {
@@ -9,7 +9,7 @@ export type BillDraft = {
   billDate: string;
   items: Item[];
   people: string[];
-  paidStatus: Record<string, boolean>;
+  paidStatus: PaymentMarks;
   serviceChargeInput: string;
   taxInput: string;
   roundingAdjustmentInput: string;
@@ -35,8 +35,11 @@ const items = (value: unknown): value is Item[] =>
   Array.isArray(value) && value.every((item: unknown) => record(item) &&
     typeof item.id === 'string' && typeof item.name === 'string' &&
     finite(item.price) && item.price >= 0 && strings(item.assigned));
-const paidStatus = (value: unknown): value is Record<string, boolean> =>
-  record(value) && Object.values(value).every((paid) => typeof paid === 'boolean');
+const paidStatus = (value: unknown): value is PaymentMarks =>
+  record(value) && !Array.isArray(value) && Object.values(value).every((paid) =>
+    typeof paid === 'boolean' || (record(paid) && finite(paid.amount) && paid.amount >= 0 &&
+      currencyCode(paid.currency) &&
+      (paid.myrAmount === undefined || (finite(paid.myrAmount) && paid.myrAmount >= 0))));
 
 export function parseBillDraft(raw: string): BillDraft | null {
   try {

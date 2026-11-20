@@ -66,7 +66,7 @@ export default function ReceiptScanner({
       <button
         type="button"
         onClick={onEnterManually}
-        className="mx-auto mt-2 flex items-center justify-center gap-2 rounded-lg px-2 text-sm font-semibold text-blue-200 transition hover:bg-white/5"
+        className="mx-auto mt-2 flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 text-sm font-semibold text-blue-200 transition hover:bg-white/5"
       >
         Enter items manually <ArrowRight aria-hidden="true" size={16} />
       </button>

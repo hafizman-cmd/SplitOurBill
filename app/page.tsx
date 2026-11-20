@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { ArrowRight, ChevronDown, Save, X } from 'lucide-react';
-import type { HistoryEntry, Item, ReceiptCharges, ScanResponse, SplitResult } from './types';
+import type { HistoryEntry, Item, PaymentMarks, ReceiptCharges, ScanResponse, SplitResult } from './types';
 import {
   HISTORY_STORAGE_KEY,
   ACTIVE_BILL_STORAGE_KEY,
@@ -12,10 +12,10 @@ import {
   STORAGE_KEY,
   compressImage,
   loadHistoryFromStorage,
-  round2,
   uid,
 } from './lib/utils';
-import { buildShareText, computeSplit } from './lib/split';
+import { computeSplit } from './lib/split';
+import { paymentMark } from './lib/paymentMarks';
 import type { SharedBill } from './lib/sharedBill';
 import { CURRENCIES, isExchangeRateSource, parseMyrRate, parseReferenceRate, type CurrencyCode, type ExchangeRateSource } from './lib/currency';
 import Header from './components/Header';
@@ -40,11 +40,10 @@ import Toast from './components/Toast';
 import { getSessionId, logEvent } from '@/lib/telemetry';
 import { getDeviceId } from '@/lib/device';
 import DailyScanLimitModal from './components/DailyScanLimitModal';
-import InstallChoiceModal from './components/InstallChoiceModal';
 
 type Removal =
   | { type: 'item'; index: number; item: Item }
-  | { type: 'person'; index: number; name: string; itemIds: Set<string>; paid: boolean };
+  | { type: 'person'; index: number; name: string; itemIds: Set<string>; paid: PaymentMarks[string] };
 
 export default function Home() {
   const [bankDetails, setBankDetails] = useState('');
@@ -60,12 +59,10 @@ export default function Home() {
   const [pendingAction, setPendingAction] = useState<{ type: 'load'; entry: HistoryEntry } | { type: 'new' | 'clear' } | null>(null);
 
   const [people, setPeople] = useState<string[]>([]);
-  const [paidStatus, setPaidStatus] = useState<Record<string, boolean>>({});
+  const [paidStatus, setPaidStatus] = useState<PaymentMarks>({});
   const [restaurantName, setRestaurantName] = useState('');
   const [billDate, setBillDate] = useState('');
-  const [shareModalOpen, setShareModalOpen] = useState(false);
-  const [sharePayload, setSharePayload] = useState<{ url: string; text: string; whatsappText: string } | null>(null);
-  const [creatingShare, setCreatingShare] = useState(false);
+  const [share, setShare] = useState<{ bill: SharedBill; calc: SplitResult } | null>(null);
 
   const [items, setItems] = useState<Item[]>([]);
   const [removal, setRemoval] = useState<Removal | null>(null);
@@ -353,15 +350,15 @@ export default function Home() {
       const scannedServiceCharge =
         typeof data.serviceChargePercent === 'number'
           ? data.serviceChargePercent
-          : Math.max(0, Number(serviceChargeInput) || 0);
+          : 0;
       const scannedTax =
         typeof data.taxPercent === 'number'
           ? data.taxPercent
-          : Math.max(0, Number(taxInput) || 0);
+          : 0;
       const scannedRoundingAdjustment =
         typeof data.roundingAdjustment === 'number'
           ? data.roundingAdjustment
-          : Number(roundingAdjustmentInput) || 0;
+          : 0;
       setPendingScan({
         image: imageDataUrl,
         scan: {
@@ -388,74 +385,68 @@ export default function Home() {
     }
   };
 
-  const confirmScan = (scan: ReviewedScan) => {
-    const nextItems = [...items, ...scan.items];
-    const reviewedCharges = scan.receiptCharges && {
-      ...scan.receiptCharges,
-      reviewedSubtotal: round2(scan.items.reduce((sum, item) => sum + item.price, 0)),
+  const confirmScan = (scan: ReviewedScan, startNew: boolean) => {
+    const nextDraft: BillDraft = {
+      ...draft,
+      historyId: startNew ? null : draft.historyId,
+      restaurantName: startNew ? scan.restaurantName : draft.restaurantName || scan.restaurantName,
+      billDate: startNew || !draft.billDate ? new Date().toISOString() : draft.billDate,
+      items: scan.items,
+      people: startNew ? [] : draft.people,
+      paidStatus: startNew ? {} : draft.paidStatus,
+      serviceChargeInput: String(scan.serviceCharge),
+      taxInput: String(scan.tax),
+      roundingAdjustmentInput: String(scan.roundingAdjustment),
+      receiptCharges: scan.receiptCharges,
     };
-    setItems(nextItems);
-    setServiceChargeInput(String(scan.serviceCharge));
-    setTaxInput(String(scan.tax));
-    setReceiptCharges(reviewedCharges);
-    setRoundingAdjustmentInput(String(scan.roundingAdjustment));
-    setRestaurantName(scan.restaurantName);
-    setBillDate(new Date().toISOString());
-    saveHistory(scan.restaurantName || 'Receipt', nextItems, scan.serviceCharge, scan.tax, scan.roundingAdjustment, reviewedCharges);
+    const saved = saveHistory(nextDraft, startNew ? draft : undefined);
+    if (!saved && startNew) return false;
+    setItems(nextDraft.items);
+    setPeople(nextDraft.people);
+    setPaidStatus(nextDraft.paidStatus);
+    setServiceChargeInput(nextDraft.serviceChargeInput);
+    setTaxInput(nextDraft.taxInput);
+    setRoundingAdjustmentInput(nextDraft.roundingAdjustmentInput);
+    setReceiptCharges(nextDraft.receiptCharges);
+    setRestaurantName(nextDraft.restaurantName);
+    setBillDate(nextDraft.billDate);
     setPendingScan(null);
+    setRemoval(null);
     setShowUnassignedOnly(false);
-    showToast(`Added ${scan.items.length} reviewed item(s). Assign who shared each one.`);
-    requestAnimationFrame(() => selectStep(people.length === 0 ? 1 : 2));
+    if (saved) showToast(startNew ? 'New bill started. Your previous bill is in History.' : 'Receipt added to the bill.');
+    requestAnimationFrame(() => selectStep(nextDraft.people.length === 0 ? 1 : 2, true));
+    return true;
   };
 
-  const saveHistory = (
-    restaurantName: string,
-    snapshotItems: Item[],
-    serviceCharge: number,
-    tax: number,
-    roundingAdjustment: number,
-    receiptCharges?: ReceiptCharges,
-  ) => {
-    const receiptData = {
-      items: snapshotItems,
-      people,
-      paidStatus,
-      serviceCharge,
-      tax,
-      roundingAdjustment,
-      receiptCharges,
-      currency,
-      myrRate,
-      rateSource,
+  const historyEntry = (source: BillDraft): HistoryEntry | null => {
+    const receiptData = snapshotFromDraft(source);
+    const { items, people, serviceCharge, tax, roundingAdjustment, receiptCharges, currency } = receiptData;
+    const { grandTotal, issue } = computeSplit(items, people, serviceCharge, tax, roundingAdjustment, receiptCharges, currency);
+    if (issue === 'invalidAmounts') return null;
+    return {
+      id: source.historyId ?? uid(),
+      date: source.billDate || new Date().toISOString(),
+      restaurantName: source.restaurantName.trim() || 'Untitled bill',
+      grandTotal,
+      itemsCount: items.length,
+      receiptData,
     };
-    const { grandTotal, issue } = computeSplit(
-      snapshotItems,
-      people,
-      serviceCharge,
-      tax,
-      roundingAdjustment,
-      receiptCharges,
-      currency,
-    );
-    if (issue === 'invalidAmounts') {
+  };
+
+  const saveHistory = (nextDraft: BillDraft, previousDraft?: BillDraft) => {
+    const entry = historyEntry(nextDraft);
+    const previous = previousDraft ? historyEntry(previousDraft) : null;
+    if (!entry || (previousDraft && !previous)) {
       showToast('Correct the amounts in the Summary before saving to History.');
       return false;
     }
-    const nowIso = new Date().toISOString();
-    const entry: HistoryEntry = {
-      id: activeHistoryId ?? uid(),
-      date: billDate || nowIso,
-      restaurantName,
-      grandTotal,
-      itemsCount: snapshotItems.length,
-      receiptData,
-    };
-    const next = [entry, ...history.filter((h) => h.id !== entry.id)].slice(0, 20);
+    const next = [entry, ...(previous ? [previous] : []),
+      ...history.filter((h) => h.id !== entry.id && h.id !== previous?.id)].slice(0, 20);
     try {
       window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next));
       setHistory(next);
       setActiveHistoryId(entry.id);
-      if (!billDate) setBillDate(nowIso);
+      if (!nextDraft.billDate) setBillDate(entry.date);
       return true;
     } catch {
       setSaveState('error');
@@ -464,10 +455,7 @@ export default function Home() {
     }
   };
 
-  const saveCurrentBill = () => saveHistory(
-    restaurantName.trim() || 'Untitled bill', items,
-    Number(serviceChargeInput), Number(taxInput), Number(roundingAdjustmentInput), receiptCharges,
-  );
+  const saveCurrentBill = () => saveHistory(draft);
 
   const requestHistoryEntry = (entry: HistoryEntry) => {
     if (entry.id === activeHistoryId) {
@@ -491,7 +479,8 @@ export default function Home() {
     setItems(snap.items);
     setPeople(snap.people);
     setPaidStatus(
-      Object.fromEntries(snap.people.map((person) => [person, snap.paidStatus?.[person] ?? false])),
+      Object.fromEntries(snap.people.filter((person) => Object.hasOwn(snap.paidStatus ?? {}, person))
+        .map((person) => [person, snap.paidStatus[person]])),
     );
     setRestaurantName(entry.restaurantName === 'Receipt' ? '' : entry.restaurantName);
     setBillDate(entry.date);
@@ -560,7 +549,6 @@ export default function Home() {
     }
     if (removal?.type === 'person' && removal.name.toLowerCase() === name.toLowerCase()) setRemoval(null);
     setPeople((prev) => [...prev, name]);
-    setPaidStatus((prev) => ({ ...prev, [name]: false }));
     return true;
   };
 
@@ -568,7 +556,7 @@ export default function Home() {
     const index = people.indexOf(name);
     if (index === -1) return;
     setRemoval({
-      type: 'person', index, name, paid: paidStatus[name] ?? false,
+      type: 'person', index, name, paid: Object.hasOwn(paidStatus, name) ? paidStatus[name] : undefined,
       itemIds: new Set(items.filter((item) => item.assigned.includes(name)).map((item) => item.id)),
     });
     setPeople((prev) => prev.filter((p) => p !== name));
@@ -585,12 +573,21 @@ export default function Home() {
     );
   };
 
-  const togglePaidStatus = (person: string) => {
-    setPaidStatus((prev) => ({ ...prev, [person]: !prev[person] }));
+  const setPersonPaid = (person: string, paid: boolean) => {
+    if (paid && (calc.issue || unassignedCount > 0 || items.length === 0 || !Object.hasOwn(calc.perPerson, person))) return;
+    if (paid) {
+      setPaidStatus((prev) => ({ ...prev, [person]: paymentMark(calc.perPerson[person].final, currency, myrRate) }));
+      return;
+    }
+    setPaidStatus((prev) => {
+      const next = { ...prev };
+      delete next[person];
+      return next;
+    });
   };
 
   const resetPaidStatus = () => {
-    setPaidStatus(Object.fromEntries(people.map((person) => [person, false])));
+    setPaidStatus({});
   };
 
   const addManualItem = (name: string, price: number) => {
@@ -623,7 +620,7 @@ export default function Home() {
     if (removal.type === 'person') {
       const { index, name, paid, itemIds } = removal;
       setPeople((current) => [...current.slice(0, index), name, ...current.slice(index)]);
-      setPaidStatus((current) => ({ ...current, [name]: paid }));
+      if (paid) setPaidStatus((current) => ({ ...current, [name]: paid }));
       setItems((current) => current.map((item) => itemIds.has(item.id)
         ? { ...item, assigned: [...item.assigned, name] }
         : item));
@@ -670,8 +667,8 @@ export default function Home() {
     input.focus({ preventScroll: true });
   };
 
-  const selectStep = (step: number) => {
-    if (step === 2) setShowUnassignedOnly(unassignedCount > 0);
+  const selectStep = (step: number, showOnlyUnassigned = unassignedCount > 0) => {
+    if (step === 2) setShowUnassignedOnly(showOnlyUnassigned);
     const section = [scannerSectionRef, peopleSectionRef, itemsSectionRef, reviewSectionRef][step]?.current;
     if (!section) return;
     section.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
@@ -755,8 +752,8 @@ export default function Home() {
     (receiptCharges.discount !== undefined || receiptCharges.serviceAmount !== undefined || receiptCharges.taxAmount !== undefined) &&
     receiptCharges.reviewedSubtotal !== calc.subtotal);
 
-  const openShareModal = async () => {
-    if (creatingShare || calc.issue) return;
+  const openShareModal = () => {
+    if (calc.issue) return;
     logEvent('share_summary_tapped');
     if (items.length === 0 || people.length === 0) {
       showToast('Add items and people first.');
@@ -772,7 +769,7 @@ export default function Home() {
       setReceiptChargesOpen(true);
       return;
     }
-    const sharedBill: SharedBill = {
+    const bill: SharedBill = {
       restaurantName: restaurantName.trim() || 'Kira-Kira Bill',
       date: billDate || new Date().toISOString(),
       currency,
@@ -801,34 +798,7 @@ export default function Home() {
       bankDetails: bankDetails.trim(),
       qrPayload,
     };
-    setCreatingShare(true);
-    try {
-      const response = await fetch('/api/shared-bills', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sharedBill),
-      });
-      if (!response.ok) {
-        showToast(response.status === 429
-          ? 'Too many share links created. Try again in a minute.'
-          : response.status === 413
-            ? 'This bill is too large to share as a link.'
-            : 'Couldn’t create the share link. Try again.');
-        return;
-      }
-      const { id } = await response.json();
-      const url = `${window.location.origin}/view/${id}`;
-      setSharePayload({
-        url,
-        text: buildShareText(calc, people, bankDetails, currency, myrRate, url),
-        whatsappText: buildShareText(calc, people, bankDetails, currency, myrRate, url, 'whatsapp'),
-      });
-      setShareModalOpen(true);
-    } catch {
-      showToast('Couldn’t create the share link. Try again.');
-    } finally {
-      setCreatingShare(false);
-    }
+    setShare({ bill, calc });
   };
 
   const saveSettings = (
@@ -861,11 +831,11 @@ export default function Home() {
         />
 
         <main aria-busy={!storageReady} className="space-y-5 px-4 pt-3">
-          <details className="group rounded-2xl border border-white/10">
+          {(hasCurrentBill || saveState === 'error') && <details className="group rounded-2xl border border-white/10">
             <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl px-4 py-2 text-sm [&::-webkit-details-marker]:hidden">
               <span className="font-semibold">Bill Actions</span>
               <span role="status" className={`min-w-0 flex-1 text-right text-xs ${saveState === 'error' ? 'font-semibold text-amber-200' : 'text-slate-300'}`}>
-                {saveState === 'loading' ? 'Opening saved bill…' : saveState === 'error' ? 'Bill not saved. Keep this tab open.' : hasCurrentBill ? 'Saved on this device' : 'Ready for a new bill'}
+                {saveState === 'loading' ? 'Opening saved bill…' : saveState === 'error' ? 'Bill not saved. Keep this tab open.' : 'Saved on this device'}
               </span>
               <ChevronDown aria-hidden="true" size={16} className="shrink-0 text-slate-300 transition-transform group-open:rotate-180" />
             </summary>
@@ -879,8 +849,8 @@ export default function Home() {
               </div>
               {activeHistoryId && <p className="text-sm text-slate-300">This bill is also in History. Its saved copy updates as you edit.</p>}
             </div>
-          </details>
-          <BillFlowGuide currentStep={currentStep} hasItems={items.length > 0} hasPeople={people.length > 0} unassignedCount={unassignedCount} onSelectStep={selectStep} />
+          </details>}
+          {hasCurrentBill && <BillFlowGuide currentStep={currentStep} hasItems={items.length > 0} hasPeople={people.length > 0} unassignedCount={unassignedCount} onSelectStep={selectStep} />}
 
           <div ref={scannerSectionRef} tabIndex={-1} aria-label="Scan or Add Items" className="bill-scroll-target rounded-2xl">
             <ReceiptScanner
@@ -950,12 +920,11 @@ export default function Home() {
               people={people}
               calc={calc}
               paidStatus={paidStatus}
-              onTogglePaid={togglePaidStatus}
+              onSetPaid={setPersonPaid}
               onResetPaid={resetPaidStatus}
               paymentQrCode={paymentQrCode}
               onShowQr={() => setQrModalOpen(true)}
               onShare={items.length > 0 ? openShareModal : undefined}
-              creatingShare={creatingShare}
               receiptChargesNeedReview={receiptChargesNeedReview}
               currency={currency}
               myrRate={myrRate}
@@ -971,14 +940,14 @@ export default function Home() {
           </div>
         )}
 
-        <button
+        {currentStep > 0 && <button
           type="button"
           onClick={() => selectStep(currentStep)}
           className="glass-action fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 z-50 flex min-h-11 -translate-x-1/2 items-center justify-center gap-2 whitespace-nowrap rounded-full px-6 text-sm font-semibold text-white transition active:scale-95"
         >
           <ArrowRight aria-hidden="true" size={16} />
-          {['Scan or add items', 'Add people', `Assign ${unassignedCount} remaining item${unassignedCount === 1 ? '' : 's'}`, 'Review split'][currentStep]}
-        </button>
+          {['', 'Add people', `Assign ${unassignedCount} remaining item${unassignedCount === 1 ? '' : 's'}`, 'Review split'][currentStep]}
+        </button>}
 
         <Footer />
 
@@ -987,6 +956,8 @@ export default function Home() {
           image={pendingScan.image}
           currency={currency}
           existingItems={items}
+          existingTotals={calc}
+          existingChargesNeedReview={receiptChargesNeedReview}
           onConfirm={confirmScan}
           onClose={() => setPendingScan(null)}
         />}
@@ -1022,14 +993,7 @@ export default function Home() {
           onClose={() => setQrModalOpen(false)}
         />
 
-        <ShareModal
-          open={shareModalOpen}
-          url={sharePayload?.url ?? ''}
-          text={sharePayload?.text ?? ''}
-          whatsappText={sharePayload?.whatsappText ?? ''}
-          onClose={() => setShareModalOpen(false)}
-          onNotify={showToast}
-        />
+        {share && <ShareModal bill={share.bill} calc={share.calc} onClose={() => setShare(null)} />}
 
         <HistoryModal
           open={historyOpen}
@@ -1072,7 +1036,6 @@ export default function Home() {
           onClose={() => setPendingAction(null)}
         />}
         {toast && <Toast message={toast} />}
-        <InstallChoiceModal />
       </div>
     </div>
   );

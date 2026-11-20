@@ -28,11 +28,19 @@ export type ScanResponse = {
   developer?: boolean;
 };
 
+export type PaymentMark = {
+  amount: number;
+  currency: CurrencyCode;
+  myrAmount?: number;
+};
+
+export type PaymentMarks = Partial<Record<string, PaymentMark | boolean>>;
+
 export type ReceiptSnapshot = {
   receiptCharges?: ReceiptCharges;
   items: Item[];
   people: string[];
-  paidStatus: Record<string, boolean>;
+  paidStatus: PaymentMarks;
   serviceCharge: number;
   tax: number;
   roundingAdjustment?: number;

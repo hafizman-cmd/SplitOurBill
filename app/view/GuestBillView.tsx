@@ -245,15 +245,15 @@ export default function GuestBillView({ bill }: { bill: SharedBill }) {
                   <dt>Subtotal</dt>
                   <dd>{money(bill.subtotal)}</dd>
                 </div>
-                {bill.serviceCharge > 0 && (
+                {(bill.serviceCharge > 0 || bill.serviceAmt > 0) && (
                   <div>
-                    <dt>Service Charge ({bill.serviceCharge}%)</dt>
+                    <dt>Service Charge{bill.serviceCharge > 0 ? ` (${bill.serviceCharge}%)` : ''}</dt>
                     <dd>{money(bill.serviceAmt)}</dd>
                   </div>
                 )}
-                {bill.tax > 0 && (
+                {(bill.tax > 0 || bill.taxAmt > 0) && (
                   <div>
-                    <dt>Tax ({bill.tax}%)</dt>
+                    <dt>Tax{bill.tax > 0 ? ` (${bill.tax}%)` : ''}</dt>
                     <dd>{money(bill.taxAmt)}</dd>
                   </div>
                 )}

@@ -4,8 +4,9 @@ import { useState } from 'react';
 import Modal from './Modal';
 import Image from 'next/image';
 import { Plus, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
-import type { Item, ReceiptCharges } from '../types';
+import type { Item, ReceiptCharges, SplitResult } from '../types';
 import { computeSplit, isBillAmount, MAX_BILL_AMOUNT, MAX_CHARGE_PERCENT } from '../lib/split';
+import { mergeReceiptTotals } from '../lib/receiptMerge';
 import { formatMoney, type CurrencyCode } from '../lib/currency';
 import { uid } from '../lib/utils';
 
@@ -25,11 +26,15 @@ type Props = {
   image: string;
   currency: CurrencyCode;
   existingItems: Item[];
-  onConfirm: (scan: ReviewedScan) => void;
+  existingTotals: SplitResult;
+  existingChargesNeedReview: boolean;
+  onConfirm: (scan: ReviewedScan, startNew: boolean) => boolean;
   onClose: () => void;
 };
 
-export default function ScanReviewModal({ scan, image, currency, existingItems, onConfirm, onClose }: Props) {
+export default function ScanReviewModal({ scan, image, currency, existingItems, existingTotals, existingChargesNeedReview, onConfirm, onClose }: Props) {
+  const [append, setAppend] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [showPhoto, setShowPhoto] = useState(false);
   const [zoomed, setZoomed] = useState(false);
   const [items, setItems] = useState(scan.items.map((item) => ({ ...item, price: item.price.toFixed(2) })));
@@ -59,8 +64,15 @@ export default function ScanReviewModal({ scan, image, currency, existingItems, 
     ? computeSplit(reviewedItems, [], Number(serviceCharge), Number(tax), Number(rounding), receiptCharges, currency)
     : null;
   const totals = calculation?.issue === 'invalidAmounts' ? null : calculation;
-  const valid = Boolean(totals) && (printedTotal === '' || isBillAmount(Number(printedTotal)));
+  const combinedItems = append ? [...existingItems, ...reviewedItems] : reviewedItems;
+  const canCombine = !existingTotals.issue && !existingChargesNeedReview;
+  const combined = append && totals && canCombine
+    ? mergeReceiptTotals(combinedItems, existingTotals, totals, currency)
+    : null;
+  const valid = Boolean(totals) && (printedTotal === '' || isBillAmount(Number(printedTotal))) &&
+    (!append || (combined !== null && !combined.totals.issue));
   const difference = totals && printedTotal !== '' ? Math.round((totals.grandTotal - Number(printedTotal)) * 100) / 100 : null;
+  const hasExistingItems = existingItems.length > 0;
 
   return (
     <Modal onClose={onClose} aria-labelledby="scan-review-title" aria-describedby="scan-review-description" className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-3 backdrop-blur-md sm:p-6" onClick={onClose}>
@@ -74,7 +86,15 @@ export default function ScanReviewModal({ scan, image, currency, existingItems, 
         </div>
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => {
           event.preventDefault();
-          if (valid) onConfirm({ items: reviewedItems, restaurantName: restaurantName.trim(), serviceCharge: Number(serviceCharge), tax: Number(tax), roundingAdjustment: Number(rounding), receiptCharges });
+          if (!valid || !totals) return;
+          setSaveFailed(!onConfirm({
+            items: combinedItems,
+            restaurantName: restaurantName.trim(),
+            serviceCharge: append ? 0 : Number(serviceCharge),
+            tax: append ? 0 : Number(tax),
+            roundingAdjustment: combined?.roundingAdjustment ?? Number(rounding),
+            receiptCharges: combined?.receiptCharges ?? { ...receiptCharges, reviewedSubtotal: totals.subtotal },
+          }, hasExistingItems && !append));
         }}>
           <div className="flex min-h-0 flex-1 flex-col md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
             <aside aria-label="Receipt preview" className="flex shrink-0 flex-col border-b border-white/10 bg-white/5 md:min-h-0 md:border-b-0 md:border-r">
@@ -90,6 +110,33 @@ export default function ScanReviewModal({ scan, image, currency, existingItems, 
               </div>
             </aside>
             <div className="min-h-0 min-w-0 space-y-5 overflow-y-auto p-5">
+              {hasExistingItems && (
+                <fieldset className="space-y-1 rounded-2xl border border-white/15 px-3 pb-2">
+                  <legend className="px-1 text-sm font-semibold">Where should this receipt go?</legend>
+                  <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+                    <input type="radio" name="scan-destination" checked={!append} onChange={() => setAppend(false)} className="accent-blue-500" />
+                    Start a new bill (current bill goes to History)
+                  </label>
+                  <label className="flex min-h-11 items-center gap-2 text-sm has-[:disabled]:opacity-60">
+                    <input type="radio" name="scan-destination" checked={append} disabled={!canCombine} onChange={() => setAppend(true)} className="accent-blue-500" />
+                    Add to this bill
+                  </label>
+                  {!canCombine && <p className="px-1 pb-2 text-sm text-amber-200">Review the current bill’s charges before combining receipts.</p>}
+                </fieldset>
+              )}
+              {combined && !combined.totals.issue && (
+                <div className="rounded-2xl border border-white/15 p-3 text-sm text-slate-300">
+                  <h3 className="font-semibold text-white">Changes to current bill</h3>
+                  <dl className="mt-2 space-y-1">
+                    {([['Service charge', existingTotals.serviceAmt, combined.totals.serviceAmt], ['Tax', existingTotals.taxAmt, combined.totals.taxAmt], ['Discount', existingTotals.discount, combined.totals.discount], ['Rounding', existingTotals.roundingAdjustment, combined.totals.roundingAdjustment]] as const).map(([label, before, after]) => (
+                      <div key={label} className="flex justify-between gap-2">
+                        <dt>{label}</dt><dd>{formatMoney(before, currency)} → {formatMoney(after, currency)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <p className="mt-2">Combined charges and discounts are split across all items.</p>
+                </div>
+              )}
               <label className="block text-sm text-slate-300">Restaurant name
                 <input value={restaurantName} onChange={(event) => setRestaurantName(event.target.value)} className="glass-input mt-1 w-full" />
               </label>
@@ -129,7 +176,6 @@ export default function ScanReviewModal({ scan, image, currency, existingItems, 
                 ))}
                 <p className="col-span-2 text-sm text-slate-300">Enter discounts as positive amounts. Leave service charge or tax amounts blank to calculate them from the rates above.</p>
               </div>
-              {existingItems.length > 0 && <p className="text-sm text-amber-200">These items will be added to your {existingItems.length} existing items. The preview below is for this receipt only. Its charges and discount will apply to the combined bill.</p>}
               {totals && <dl className="space-y-2 rounded-2xl bg-blue-500/10 p-4 text-sm">
                 {([['Subtotal', totals.subtotal], ['Discount', -totals.discount], ['Service charge', totals.serviceAmt], ['Tax', totals.taxAmt], ['Rounding', totals.roundingAdjustment], ['Calculated receipt total', totals.grandTotal]] as const).map(([label, amount]) => <div key={label} className="flex justify-between gap-3"><dt>{label}</dt><dd className="font-semibold tabular-nums">{formatMoney(amount, currency)}</dd></div>)}
               </dl>}
@@ -149,12 +195,22 @@ export default function ScanReviewModal({ scan, image, currency, existingItems, 
                   </ul>
                 </div>
               )}
-              {!valid && <p role="status" className="text-sm text-amber-200">Enter all item names and prices. Amounts and totals can be at most 1 billion and percentages must be between 0 and 100.</p>}
+              {!valid && (
+                <p role="status" className="text-sm text-amber-200">
+                  Enter all item names and prices. Amounts and totals can be at most 1 billion and percentages must be between 0 and 100.
+                </p>
+              )}
             </div>
           </div>
-          <div className="flex shrink-0 gap-3 border-t border-white/10 p-4">
-            <button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-white/15 px-4 text-sm">Discard</button>
-            <button type="submit" disabled={!valid} className="min-h-11 flex-1 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white disabled:opacity-50">Confirm {items.length} item{items.length === 1 ? '' : 's'}</button>
+          <div className="shrink-0 space-y-2 border-t border-white/10 p-4">
+            {combined && !combined.totals.issue && (
+              <p className="text-sm font-semibold text-white">Combined total {formatMoney(combined.totals.grandTotal, currency)}</p>
+            )}
+            {saveFailed && <p role="alert" className="text-sm text-amber-200">The bill could not be saved to History. Check the current bill amounts or free up browser storage and retry.</p>}
+            <div className="flex gap-3">
+              <button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-white/15 px-4 text-sm">Discard</button>
+              <button type="submit" disabled={!valid} className="min-h-11 flex-1 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{hasExistingItems ? (append ? 'Add to this bill' : 'Start new bill') : `Confirm ${items.length} item${items.length === 1 ? '' : 's'}`}</button>
+            </div>
           </div>
         </form>
       </div>
